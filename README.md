@@ -84,7 +84,7 @@ curl -F file=@demo.docx http://127.0.0.1:8013/api/upload
 
 ## 一期范围
 
-**支持：** Office/WPS/ODF→PDF、常见图片、文本源码、zip/tar/gzip、常见音视频。
+**支持：** DOCX 原生 Word 版式预览；其他 Office/WPS/ODF→PDF、常见图片、文本源码、zip/tar/gzip、常见音视频。
 
 **不做：** CAD/3D、邮件、ofd/epub/xmind 等专项、音视频转码、真实 FTP 拉取（首页保留参数位）。
 

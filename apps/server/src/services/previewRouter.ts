@@ -8,6 +8,7 @@ import {
   renderErrorPage,
   renderUnsupported,
 } from "../viewers/archive.js";
+import { renderDocxViewer } from "../viewers/docx.js";
 import { renderImageViewer } from "../viewers/image.js";
 import { renderMediaViewer } from "../viewers/media.js";
 import { renderPdfViewer } from "../viewers/pdf.js";
@@ -76,9 +77,10 @@ async function resolveSource(url: string): Promise<SourceFile> {
 async function materializeTempUrl(source: SourceFile): Promise<string> {
   const id = nanoid(12);
   const ext = source.ext || "bin";
-  const dest = safeJoin(config.tempDir, `serve-${id}.${ext}`);
+  const fileName = `serve-${id}.${ext}`;
+  const dest = safeJoin(config.tempDir, fileName);
   await fs.copyFile(source.absPath, dest);
-  return `/api/temp/${id}.${ext}`;
+  return `/api/temp/${fileName}`;
 }
 
 function rawUrlFor(source: SourceFile): string {
@@ -167,6 +169,19 @@ export async function buildPreview(query: PreviewQuery): Promise<PreviewResult> 
           fileId: source.fileId,
           entries,
           watermark,
+        }),
+      };
+    }
+
+    if (source.ext === "docx") {
+      const fileUrl = rawUrlFor(source) || (await materializeTempUrl(source));
+      return {
+        status: 200,
+        html: renderDocxViewer({
+          title,
+          fileUrl,
+          watermark,
+          highlight: query.highlight,
         }),
       };
     }

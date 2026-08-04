@@ -6,6 +6,7 @@ import rateLimit from "@fastify/rate-limit";
 import fastifyStatic from "@fastify/static";
 import { config } from "./config.js";
 import { basicAuthHook } from "./middleware/auth.js";
+import { assetRoutes } from "./routes/assets.js";
 import { fileRoutes } from "./routes/files.js";
 import { healthRoutes } from "./routes/health.js";
 import { previewRoutes } from "./routes/preview.js";
@@ -46,6 +47,7 @@ async function main() {
   });
 
   await healthRoutes(app);
+  await assetRoutes(app);
   await fileRoutes(app);
   await rawRoutes(app);
   await previewRoutes(app);
@@ -61,7 +63,8 @@ async function main() {
       if (
         pathOnly.startsWith("/api") ||
         pathOnly.startsWith("/onlinePreview") ||
-        pathOnly.startsWith("/health")
+        pathOnly.startsWith("/health") ||
+        pathOnly.startsWith("/assets")
       ) {
         return reply.code(404).send({ error: "Not found" });
       }

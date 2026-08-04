@@ -44,7 +44,7 @@ import { cn } from "@/lib/utils";
 const FORMAT_GROUPS = [
   {
     title: "Office / WPS / ODF",
-    desc: "doc/docx/xls/xlsx/ppt/pptx/csv · wps/dps/et · odt/ods/odp → PDF",
+    desc: "docx 原生 Word 版式预览；doc/xls/xlsx/ppt 等 → PDF",
   },
   {
     title: "图片",

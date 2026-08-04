@@ -49,6 +49,7 @@ export async function rawRoutes(app: FastifyInstance): Promise<void> {
     async (request, reply) => {
       try {
         const name = path.basename(request.params.name);
+        // allow serve-<nanoid>.<ext>  (nanoid may include _ and -)
         if (!/^serve-[\w.-]+$/.test(name)) {
           return reply.code(400).send({ error: "Invalid temp name" });
         }
