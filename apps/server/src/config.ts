@@ -39,6 +39,11 @@ const schema = z.object({
     .string()
     .optional()
     .transform((v) => v === "true" || v === "1"),
+  /** 允许 iframe / Electron webview 嵌入预览页（默认开启） */
+  ALLOW_EMBED: z
+    .string()
+    .optional()
+    .transform((v) => v !== "false" && v !== "0"),
 });
 
 const env = schema.parse(process.env);
@@ -75,5 +80,6 @@ export const config = {
   libreOfficePath: env.LIBREOFFICE_PATH,
   convertTimeoutMs: env.CONVERT_TIMEOUT_MS,
   trustProxy: Boolean(env.TRUST_PROXY),
+  allowEmbed: env.ALLOW_EMBED !== false,
   webDistDir: path.resolve(rootDir, "apps/web/dist"),
 };

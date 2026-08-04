@@ -18,6 +18,15 @@ export async function healthRoutes(app: FastifyInstance): Promise<void> {
     previewPasswordEnabled: Boolean(config.previewPassword),
     maxUploadSizeMb: Math.round(config.maxUploadSizeBytes / 1024 / 1024),
     ftpEnabled: false,
+    allowEmbed: config.allowEmbed,
+    blockPrivateIp: config.blockPrivateIp,
+    rateLimitMax: config.rateLimit.max,
+    rateLimitWindowMs: config.rateLimit.timeWindow,
+    libreOfficePath: config.libreOfficePath,
+    convertTimeoutMs: config.convertTimeoutMs,
+    host: config.host,
+    port: config.port,
+    dataDir: config.dataDir,
   }));
 
   app.post<{

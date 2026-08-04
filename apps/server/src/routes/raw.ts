@@ -17,6 +17,7 @@ export async function rawRoutes(app: FastifyInstance): Promise<void> {
       const type = file.mime || mime.lookup(file.ext) || "application/octet-stream";
       reply.header("Content-Type", type);
       reply.header("X-Content-Type-Options", "nosniff");
+      reply.header("Cache-Control", "private, max-age=120");
       return reply.send(fs.createReadStream(file.path));
     },
   );
@@ -50,7 +51,7 @@ export async function rawRoutes(app: FastifyInstance): Promise<void> {
       try {
         const name = path.basename(request.params.name);
         // allow serve-<nanoid>.<ext>  (nanoid may include _ and -)
-        if (!/^serve-[\w.-]+$/.test(name)) {
+        if (!/^(serve-)?[\w.-]+$/.test(name)) {
           return reply.code(400).send({ error: "Invalid temp name" });
         }
         const abs = safeJoin(config.tempDir, name);
@@ -58,6 +59,7 @@ export async function rawRoutes(app: FastifyInstance): Promise<void> {
         const type = mime.lookup(name) || "application/octet-stream";
         reply.header("Content-Type", type);
         reply.header("X-Content-Type-Options", "nosniff");
+        reply.header("Cache-Control", "private, max-age=300");
         return reply.send(fs.createReadStream(abs));
       } catch (err) {
         if (err instanceof PathEscapeError) {

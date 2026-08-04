@@ -11,12 +11,13 @@ import {
   removeCache,
   writeCacheFile,
 } from "../cache.js";
+import { recordMonitorEvent } from "../monitor.js";
 
 export async function convertToPdf(opts: {
   sourcePath: string;
   sourceName: string;
   force?: boolean;
-}): Promise<{ pdfPath: string; key: string }> {
+}): Promise<{ pdfPath: string; key: string; cacheHit: boolean }> {
   const stat = await fs.stat(opts.sourcePath);
   const key = cacheKey([
     opts.sourcePath,
@@ -30,11 +31,20 @@ export async function convertToPdf(opts: {
   }
 
   if (await hasCache(key, "pdf")) {
-    return { pdfPath: cachePathFor(key, "pdf"), key };
+    recordMonitorEvent({
+      kind: "convert",
+      level: "info",
+      message: `转换缓存命中：${opts.sourceName}`,
+      detail: { sourceName: opts.sourceName, key: key.slice(0, 12) },
+      durationMs: 0,
+      cacheHit: true,
+    });
+    return { pdfPath: cachePathFor(key, "pdf"), key, cacheHit: true };
   }
 
   const workDir = safeJoin(config.tempDir, `conv-${nanoid(8)}`);
   ensureDir(workDir);
+  const started = Date.now();
 
   try {
     const outDir = workDir;
@@ -47,7 +57,33 @@ export async function convertToPdf(opts: {
     }
     const produced = path.join(outDir, pdfName);
     const pdfPath = await writeCacheFile(key, produced, "pdf");
-    return { pdfPath, key };
+    const durationMs = Date.now() - started;
+    recordMonitorEvent({
+      kind: "convert",
+      level: "info",
+      message: `转码完成：${opts.sourceName}`,
+      detail: {
+        sourceName: opts.sourceName,
+        key: key.slice(0, 12),
+        force: Boolean(opts.force),
+      },
+      durationMs,
+      cacheHit: false,
+    });
+    return { pdfPath, key, cacheHit: false };
+  } catch (err) {
+    recordMonitorEvent({
+      kind: "convert",
+      level: "error",
+      message: `转码失败：${opts.sourceName}`,
+      detail: {
+        sourceName: opts.sourceName,
+        error: err instanceof Error ? err.message : String(err),
+      },
+      durationMs: Date.now() - started,
+      cacheHit: false,
+    });
+    throw err;
   } finally {
     await fs.rm(workDir, { recursive: true, force: true }).catch(() => undefined);
   }

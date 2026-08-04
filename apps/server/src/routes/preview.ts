@@ -65,7 +65,12 @@ export async function previewRoutes(app: FastifyInstance): Promise<void> {
 
     reply
       .code(result.status)
-      .header("Content-Security-Policy", "object-src 'none'; base-uri 'none'")
+      .header(
+        "Content-Security-Policy",
+        config.allowEmbed
+          ? "object-src 'none'; base-uri 'none'; frame-ancestors *"
+          : "object-src 'none'; base-uri 'none'; frame-ancestors 'self'",
+      )
       .header("X-Content-Type-Options", "nosniff")
       .type("text/html; charset=utf-8")
       .send(result.html);

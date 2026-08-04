@@ -10,9 +10,13 @@ import { assetRoutes } from "./routes/assets.js";
 import { docxExportRoutes } from "./routes/docxExport.js";
 import { fileRoutes } from "./routes/files.js";
 import { healthRoutes } from "./routes/health.js";
+import { demoRoutes } from "./routes/demo.js";
 import { previewRoutes } from "./routes/preview.js";
 import { rawRoutes } from "./routes/raw.js";
+import { remoteRoutes } from "./routes/remote.js";
+import { monitorRoutes } from "./routes/monitor.js";
 import { initFileStore } from "./services/fileStore.js";
+import { initMonitorStore } from "./services/monitor.js";
 import { ensureDir } from "./utils/path.js";
 
 async function main() {
@@ -20,6 +24,7 @@ async function main() {
   ensureDir(config.cacheDir);
   ensureDir(config.tempDir);
   await initFileStore();
+  initMonitorStore();
 
   const app = Fastify({
     logger: true,
@@ -43,15 +48,23 @@ async function main() {
 
   app.addHook("onSend", async (_request, reply) => {
     reply.header("X-Content-Type-Options", "nosniff");
-    reply.header("X-Frame-Options", "SAMEORIGIN");
     reply.header("Referrer-Policy", "no-referrer");
+    // Electron <webview> / iframe 嵌入时，X-Frame-Options: SAMEORIGIN → ERR_BLOCKED_BY_RESPONSE
+    if (config.allowEmbed) {
+      reply.removeHeader("X-Frame-Options");
+    } else {
+      reply.header("X-Frame-Options", "SAMEORIGIN");
+    }
   });
 
   await healthRoutes(app);
   await assetRoutes(app);
   await fileRoutes(app);
   await rawRoutes(app);
+  await demoRoutes(app);
+  await remoteRoutes(app);
   await docxExportRoutes(app);
+  await monitorRoutes(app);
   await previewRoutes(app);
 
   if (fs.existsSync(config.webDistDir)) {

@@ -35,6 +35,11 @@ export function tryDecodeUrlParam(raw: string): string {
   const trimmed = raw.trim();
   if (!trimmed) return "";
 
+  // Already a plain remote / local virtual url (after Fastify query decode)
+  if (/^https?:\/\//i.test(trimmed) || trimmed.startsWith("file://local/")) {
+    return trimmed;
+  }
+
   if (config.aes.enabled) {
     try {
       return aesDecrypt(trimmed);
@@ -53,7 +58,14 @@ export function tryDecodeUrlParam(raw: string): string {
   }
 
   try {
-    return decodeURIComponent(trimmed);
+    const uriDecoded = decodeURIComponent(trimmed);
+    if (
+      /^https?:\/\//i.test(uriDecoded) ||
+      uriDecoded.startsWith("file://local/")
+    ) {
+      return uriDecoded;
+    }
+    return uriDecoded;
   } catch {
     return trimmed;
   }

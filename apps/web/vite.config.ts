@@ -19,6 +19,7 @@ export default defineConfig({
       "/api": "http://127.0.0.1:8013",
       "/assets": "http://127.0.0.1:8013",
       "/onlinePreview": "http://127.0.0.1:8013",
+      "/__demo": "http://127.0.0.1:8013",
       "/health": "http://127.0.0.1:8013",
     },
   },

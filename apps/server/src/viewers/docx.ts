@@ -12,18 +12,25 @@ export function renderDocxViewer(opts: {
 
   return layout({
     title: opts.title,
+    chrome: "content",
     head: `
       <style>
         :root {
           --word-chrome: #f3f3f3;
           --word-border: #d4d4d4;
-          --word-canvas: #605e5c;
+          --word-canvas: #ffffff;
           --word-text: #242424;
           --word-muted: #616161;
           --word-accent: #185abd;
           --sidebar-w: 280px;
         }
+        /* 用 fixed inset 铺满宿主（含 iframe），避免 100vh/100% 链断裂留下空隙 */
         html, body {
+          width: 100% !important;
+          height: 100% !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          overflow: hidden !important;
           background: var(--word-chrome) !important;
           color: var(--word-text) !important;
           font-family: "Segoe UI", "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", sans-serif !important;
@@ -33,8 +40,9 @@ export function renderDocxViewer(opts: {
           border-bottom: 1px solid var(--word-border) !important;
           color: var(--word-text) !important;
           box-shadow: 0 1px 0 rgba(0,0,0,.04);
+          display: none !important;
         }
-        .topbar h1 { color: var(--word-text) !important; font-weight: 600; }
+        .topbar h1 { display: none !important; }
         .topbar .meta { color: var(--word-muted); font-size: 12px; }
         .topbar button, .topbar .btn, .toolbar button {
           background: #fff;
@@ -61,9 +69,18 @@ export function renderDocxViewer(opts: {
         }
         .sep { width: 1px; height: 20px; background: var(--word-border); margin: 0 4px; }
         .shell {
-          display: grid;
+          position: fixed !important;
+          inset: 0 !important;
+          width: auto !important;
+          height: auto !important;
+          max-width: none !important;
+          max-height: none !important;
+          display: grid !important;
           grid-template-columns: var(--sidebar-w) 1fr;
-          height: calc(100% - 49px);
+          grid-template-rows: 1fr;
+          overflow: hidden !important;
+          flex: none !important;
+          background: var(--word-chrome);
         }
         .shell.sidebar-collapsed {
           grid-template-columns: 0 1fr;
@@ -79,6 +96,9 @@ export function renderDocxViewer(opts: {
           display: flex;
           flex-direction: column;
           min-width: 0;
+          min-height: 0;
+          height: 100%;
+          align-self: stretch;
         }
         .sidebar-hd {
           padding: 12px 14px;
@@ -90,11 +110,13 @@ export function renderDocxViewer(opts: {
           justify-content: space-between;
           align-items: center;
           gap: 8px;
+          flex-shrink: 0;
         }
         .outline {
           overflow: auto;
           padding: 8px;
           flex: 1;
+          min-height: 0;
         }
         .outline a {
           display: block;
@@ -123,9 +145,12 @@ export function renderDocxViewer(opts: {
         }
         .main {
           min-width: 0;
+          min-height: 0;
           display: flex;
           flex-direction: column;
-          height: 100%;
+          height: 100% !important;
+          overflow: hidden;
+          align-self: stretch;
         }
         .toolbar {
           display: none;
@@ -136,16 +161,18 @@ export function renderDocxViewer(opts: {
           background: #fff;
           border-bottom: 1px solid var(--word-border);
         }
-        .toolbar.visible { display: flex; }
+        .toolbar.visible { display: none !important; }
         .toolbar .hint {
           margin-left: auto;
           font-size: 12px;
           color: var(--word-muted);
         }
         .viewer {
-          flex: 1;
-          overflow: auto;
-          background: linear-gradient(180deg, #6b6967 0%, var(--word-canvas) 140px);
+          flex: 1 1 auto !important;
+          min-height: 0 !important;
+          height: auto !important;
+          overflow: auto !important;
+          background: #fff;
           position: relative;
         }
         #status {
@@ -155,25 +182,37 @@ export function renderDocxViewer(opts: {
           font-size: 14px;
         }
         #docx-root {
-          padding: 28px 16px 64px;
+          padding: 0 !important;
+          margin: 0 !important;
           min-height: 100%;
+          width: 100%;
         }
         #docx-root .docx-wrapper {
-          background: transparent !important;
+          background: #fff !important;
           padding: 0 !important;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          gap: 24px;
+          margin: 0 !important;
+          display: block !important;
+          width: 100% !important;
+          max-width: none !important;
+          gap: 0 !important;
         }
         #docx-root .docx-wrapper > section.docx {
           background: #fff !important;
-          box-shadow:
-            0 1px 3px rgba(0,0,0,.28),
-            0 10px 28px rgba(0,0,0,.2) !important;
-          margin: 0 auto !important;
+          box-shadow: none !important;
+          margin: 0 !important;
+          margin-bottom: 0 !important;
+          width: 100% !important;
+          max-width: none !important;
+          min-height: 0 !important;
+          padding-top: 12px !important;
+          padding-bottom: 12px !important;
           color: #000;
-          transform-origin: top center;
+          transform-origin: top left;
+          box-sizing: border-box !important;
+        }
+        #docx-root .docx-wrapper > section.docx + section.docx {
+          border-top: 1px dashed #e5e7eb;
+          padding-top: 16px !important;
         }
         body.editing #docx-root .docx-wrapper > section.docx article {
           outline: 1px dashed #9dc3e6;
@@ -203,12 +242,13 @@ export function renderDocxViewer(opts: {
           :root { --sidebar-w: 220px; }
         }
         @media (max-width: 720px) {
-          .shell { grid-template-columns: 1fr; }
+          .shell { grid-template-columns: 1fr !important; }
           .sidebar {
             position: absolute;
             z-index: 20;
-            left: 0; top: 49px; bottom: 0;
+            left: 0; top: 0; bottom: 0;
             width: min(80vw, 280px);
+            height: 100%;
             box-shadow: 8px 0 24px rgba(0,0,0,.18);
             transform: translateX(-105%);
             transition: transform .2s ease;
@@ -217,7 +257,13 @@ export function renderDocxViewer(opts: {
         }
         @media print {
           .topbar, .sidebar, .toolbar, .watermark { display: none !important; }
-          .shell { display: block; height: auto; }
+          .shell {
+            display: block !important;
+            position: static !important;
+            inset: auto !important;
+            height: auto !important;
+            width: auto !important;
+          }
           .viewer { height: auto !important; overflow: visible !important; background: #fff !important; }
           #docx-root { padding: 0 !important; }
           #docx-root .docx-wrapper > section.docx {
@@ -232,7 +278,6 @@ export function renderDocxViewer(opts: {
       <div class="topbar">
         <div style="display:flex;align-items:center;gap:12px;min-width:0;flex:1">
           <button type="button" id="toggleSidebar" title="目录">目录</button>
-          <h1 title="${safeTitle}">${safeTitle}</h1>
           <span class="meta" id="pageMeta"></span>
         </div>
         <div class="actions">
@@ -297,10 +342,25 @@ export function renderDocxViewer(opts: {
           const editBtn = document.getElementById("editBtn");
           const downloadBtn = document.getElementById("downloadBtn");
           const editToolbar = document.getElementById("editToolbar");
+          [
+            ["toggleSidebar", "切换目录"],
+            ["refreshOutline", "刷新目录"],
+            ["editBtn", "切换编辑"],
+            ["downloadBtn", "下载 DOCX"],
+            ["zoomOut", "缩小"],
+            ["zoomIn", "放大"],
+            ["fitWidth", "适合宽度"],
+            ["fitPage", "实际大小"],
+            ["printBtn", "打印"],
+          ].forEach(function (item) {
+            window.__NFV_PREVIEW__?.registerButtonAction(item[0], { label: item[1] });
+          });
           let scale = 1;
           let editing = false;
           let dirty = false;
           let originalBuffer = null;
+          /** styleId(escaped) -> heading level 1-6；兼容 WPS/旧文档用数字 styleId 的情况 */
+          let headingStyleMap = Object.create(null);
 
           function loadScript(src) {
             return new Promise(function (resolve, reject) {
@@ -346,6 +406,7 @@ export function renderDocxViewer(opts: {
               el.style.marginBottom = Math.max(0, (scale - 1) * h) + "px";
             }
             zoomLabel.textContent = Math.round(scale * 100) + "%";
+            window.__NFV_PREVIEW__?.setState({ kind: "docx", scale: scale });
           }
 
           function fitWidth() {
@@ -386,55 +447,177 @@ export function renderDocxViewer(opts: {
             if (first) first.scrollIntoView({ behavior: "smooth", block: "center" });
           }
 
+          function escapeStyleClassId(id) {
+            return String(id || "")
+              .replace(/[ .]+/g, "-")
+              .replace(/[&]+/g, "and")
+              .toLowerCase();
+          }
+
+          function levelFromStyleName(name) {
+            const n = String(name || "").toLowerCase().trim();
+            if (!n) return 0;
+            // 目录域本身不进大纲
+            if (/(?:^|\\s)toc\\s*[1-9]/.test(n) || /^toc$/.test(n)) return 0;
+            let m = n.match(/heading\\s*([1-6])/);
+            if (m) return Number(m[1]);
+            m = n.match(/标题\\s*([1-6])/);
+            if (m) return Number(m[1]);
+            if (n === "title" || n === "标题" || n === "titolo" || n === "titel") return 1;
+            return 0;
+          }
+
+          async function loadHeadingStyleMap(buffer) {
+            const map = Object.create(null);
+            if (!window.JSZip || !buffer) return map;
+            try {
+              const zip = await window.JSZip.loadAsync(buffer);
+              const file = zip.file("word/styles.xml");
+              if (!file) return map;
+              const xml = await file.async("string");
+              const blocks = xml.split(/<w:style[\\s>]/).slice(1);
+              const byId = Object.create(null);
+              for (let i = 0; i < blocks.length; i++) {
+                const b = blocks[i];
+                const type = (b.match(/w:type="([^"]+)"/) || [])[1];
+                if (type && type !== "paragraph") continue;
+                const id = (b.match(/w:styleId="([^"]+)"/) || [])[1];
+                if (!id) continue;
+                const name = (b.match(/<w:name[^>]*w:val="([^"]*)"/) || [])[1] || "";
+                const basedOn = (b.match(/<w:basedOn[^>]*w:val="([^"]*)"/) || [])[1] || "";
+                const ol = (b.match(/<w:outlineLvl[^>]*w:val="(\\d+)"/) || [])[1];
+                byId[id] = { id: id, name: name, basedOn: basedOn, ol: ol };
+              }
+              function resolve(id, seen) {
+                if (!id || !byId[id]) return 0;
+                if (Object.prototype.hasOwnProperty.call(map, escapeStyleClassId(id))) {
+                  return map[escapeStyleClassId(id)];
+                }
+                if (seen[id]) return 0;
+                seen[id] = true;
+                const s = byId[id];
+                const fromName = levelFromStyleName(s.name);
+                if (fromName) return fromName;
+                if (s.ol != null && s.ol !== "") {
+                  const lv = Number(s.ol) + 1;
+                  if (lv >= 1 && lv <= 6) return lv;
+                }
+                if (s.basedOn) return resolve(s.basedOn, seen);
+                return 0;
+              }
+              Object.keys(byId).forEach(function (id) {
+                const level = resolve(id, Object.create(null));
+                if (level) map[escapeStyleClassId(id)] = level;
+              });
+            } catch (_) {}
+            return map;
+          }
+
           function headingLevel(el) {
-            const cls = (el.className || "").toString().toLowerCase();
-            const m = cls.match(/heading\\s*[_-]?\\s*([1-6])|标题\\s*([1-6])/);
-            if (m) return Number(m[1] || m[2]);
-            for (let i = 1; i <= 6; i++) {
-              if (cls.includes("heading" + i) || cls.includes("标题" + i)) return i;
+            // docx-preview：Heading1 -> docx_heading1；但 WPS/部分文档 styleId 是数字，变成 docx_2
+            const cls = (el.getAttribute("class") || "").toString().toLowerCase();
+            // 排除目录域（TOC1 / toc-1）
+            if (/(?:^|[\\s_-])toc(?:[-_\\s]*)[1-6](?:\\b|$)/.test(cls)) return 0;
+
+            // 优先用 styles.xml 解析出的 styleId → 级别映射
+            if (cls) {
+              const tokens = cls.split(/\\s+/);
+              for (let t = 0; t < tokens.length; t++) {
+                const token = tokens[t];
+                if (!token) continue;
+                const id = token.indexOf("docx_") === 0 ? token.slice(5) : token;
+                if (headingStyleMap[id]) return headingStyleMap[id];
+                if (headingStyleMap[token]) return headingStyleMap[token];
+              }
             }
-            const tag = el.tagName;
+
+            // 兼容标准英文/中文样式名直接出现在 class 中的情况
+            for (let i = 6; i >= 1; i--) {
+              const n = String(i);
+              if (
+                cls.includes("heading" + n) ||
+                cls.includes("heading-" + n) ||
+                cls.includes("heading_" + n) ||
+                cls.includes("标题" + n) ||
+                cls.includes("标题-" + n) ||
+                cls.includes("标题_" + n)
+              ) {
+                return i;
+              }
+            }
+
+            if (
+              (/(?:^|[\\s_-])title(?:\\b|$)/.test(cls) || /(?:^|[\\s_-])标题(?:\\b|$)/.test(cls)) &&
+              !/标题[-_\\s]*[1-6]/.test(cls)
+            ) {
+              return 1;
+            }
+
+            const tag = (el.tagName || "").toUpperCase();
             if (/^H[1-6]$/.test(tag)) return Number(tag.slice(1));
-            const style = window.getComputedStyle(el);
-            const size = parseFloat(style.fontSize) || 0;
-            const weight = style.fontWeight;
-            const bold = weight === "bold" || Number(weight) >= 600;
-            if (bold && size >= 22) return 1;
-            if (bold && size >= 18) return 2;
-            if (bold && size >= 15) return 3;
+
+            const outlineAttr = el.getAttribute("data-outline-level") || el.getAttribute("data-level");
+            if (outlineAttr && /^[0-5]$/.test(outlineAttr)) return Number(outlineAttr) + 1;
+
+            try {
+              const style = window.getComputedStyle(el);
+              const size = parseFloat(style.fontSize) || 0;
+              const weight = style.fontWeight;
+              const bold = weight === "bold" || Number(weight) >= 600;
+              if (bold && size >= 22) return 1;
+              if (bold && size >= 18) return 2;
+              if (bold && size >= 15) return 3;
+            } catch (_) {}
             return 0;
           }
 
           function buildOutline() {
-            const nodes = root.querySelectorAll("article p, article h1, article h2, article h3, article h4, article h5, article h6");
-            const items = [];
-            let idx = 0;
-            nodes.forEach(function (el) {
-              const text = (el.textContent || "").replace(/\\s+/g, " ").trim();
-              if (!text) return;
-              const level = headingLevel(el);
-              if (!level) return;
-              if (!el.id) el.id = "nfv-h-" + (++idx);
-              items.push({ id: el.id, text: text.slice(0, 80), level: level });
-            });
-            if (!items.length) {
-              outlineEl.innerHTML = '<div class="empty">未识别到标题样式。可在编辑模式用「标题1/2」标记后刷新目录。</div>';
-              return;
-            }
-            outlineEl.innerHTML = items.map(function (it) {
-              return '<a class="lv' + it.level + '" href="#' + it.id + '" data-id="' + it.id + '">' +
-                it.text.replace(/</g, "&lt;") + "</a>";
-            }).join("");
-            outlineEl.querySelectorAll("a").forEach(function (a) {
-              a.addEventListener("click", function (e) {
-                e.preventDefault();
-                const target = document.getElementById(a.getAttribute("data-id"));
-                if (!target) return;
-                outlineEl.querySelectorAll("a").forEach(function (x) { x.classList.remove("active"); });
-                a.classList.add("active");
-                target.scrollIntoView({ behavior: "smooth", block: "center" });
+            if (!outlineEl || !root) return;
+            try {
+              // 优先 article；结构异常时退回整棵 section
+              let nodes = root.querySelectorAll(
+                "article p, article h1, article h2, article h3, article h4, article h5, article h6"
+              );
+              if (!nodes.length) {
+                nodes = root.querySelectorAll(
+                  "section.docx p, section.docx h1, section.docx h2, section.docx h3, section.docx h4, section.docx h5, section.docx h6"
+                );
+              }
+              const items = [];
+              let idx = 0;
+              const seen = new Set();
+              nodes.forEach(function (el) {
+                const text = (el.textContent || "").replace(/\\s+/g, " ").trim();
+                if (!text || text.length > 240) return;
+                const level = headingLevel(el);
+                if (!level) return;
+                if (!el.id) el.id = "nfv-h-" + (++idx);
+                if (seen.has(el.id)) return;
+                seen.add(el.id);
+                items.push({ id: el.id, text: text.slice(0, 80), level: level });
               });
-            });
+              if (!items.length) {
+                outlineEl.innerHTML = '<div class="empty">未识别到标题样式。可在编辑模式用「标题1/2」标记后刷新目录。</div>';
+                return;
+              }
+              outlineEl.innerHTML = items.map(function (it) {
+                return '<a class="lv' + it.level + '" href="#' + it.id + '" data-id="' + it.id + '">' +
+                  it.text.replace(/</g, "&lt;") + "</a>";
+              }).join("");
+              outlineEl.querySelectorAll("a").forEach(function (a) {
+                a.addEventListener("click", function (e) {
+                  e.preventDefault();
+                  const target = document.getElementById(a.getAttribute("data-id"));
+                  if (!target) return;
+                  outlineEl.querySelectorAll("a").forEach(function (x) { x.classList.remove("active"); });
+                  a.classList.add("active");
+                  target.scrollIntoView({ behavior: "smooth", block: "center" });
+                });
+              });
+            } catch (err) {
+              outlineEl.innerHTML = '<div class="empty">目录生成失败：' +
+                (err && err.message ? err.message : String(err)) + "</div>";
+            }
           }
 
           function setEditing(on) {
@@ -443,6 +626,7 @@ export function renderDocxViewer(opts: {
             editBtn.textContent = on ? "完成编辑" : "编辑";
             editBtn.classList.toggle("active", on);
             editToolbar.classList.toggle("visible", on);
+            window.__NFV_PREVIEW__?.setState({ editing: editing });
             root.querySelectorAll("section.docx article").forEach(function (article) {
               article.contentEditable = on ? "true" : "false";
               if (on) {
@@ -533,6 +717,7 @@ export function renderDocxViewer(opts: {
             const res = await fetch(fileUrl);
             if (!res.ok) throw new Error("下载文档失败 HTTP " + res.status);
             originalBuffer = await res.arrayBuffer();
+            headingStyleMap = await loadHeadingStyleMap(originalBuffer);
 
             root.hidden = false;
             status.remove();
@@ -541,7 +726,7 @@ export function renderDocxViewer(opts: {
               className: "docx",
               inWrapper: true,
               ignoreWidth: false,
-              ignoreHeight: false,
+              ignoreHeight: true,
               breakPages: true,
               ignoreLastRenderedPageBreak: true,
               experimental: true,
@@ -557,9 +742,14 @@ export function renderDocxViewer(opts: {
             const baseMeta = pages ? (pages + " 页 · Word 版式") : "Word 版式";
             pageMeta.dataset.base = baseMeta;
             pageMeta.textContent = baseMeta;
+            window.__NFV_PREVIEW__?.setState({ kind: "docx", pages: pages, editing: editing });
             applyZoom();
-            highlightKeyword(root, keyword);
             buildOutline();
+            try { highlightKeyword(root, keyword); } catch (_) {}
+            // 样式表注入后 dual-rAF 再扫一次，避免首屏漏检
+            requestAnimationFrame(function () {
+              requestAnimationFrame(function () { buildOutline(); });
+            });
             downloadBtn.disabled = false;
             if (viewer.clientWidth < 900) fitWidth();
           } catch (err) {

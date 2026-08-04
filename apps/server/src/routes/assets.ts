@@ -41,7 +41,7 @@ export async function assetRoutes(app: FastifyInstance): Promise<void> {
       const type = name.endsWith(".css")
         ? "text/css; charset=utf-8"
         : "application/javascript; charset=utf-8";
-      reply.header("Cache-Control", "public, max-age=86400");
+      reply.header("Cache-Control", "public, max-age=604800, immutable");
       return reply.type(type).send(fs.createReadStream(abs));
     },
   );

@@ -4,6 +4,15 @@ export interface PublicConfig {
   previewPasswordEnabled: boolean;
   maxUploadSizeMb: number;
   ftpEnabled: boolean;
+  allowEmbed?: boolean;
+  blockPrivateIp?: boolean;
+  rateLimitMax?: number;
+  rateLimitWindowMs?: number;
+  libreOfficePath?: string;
+  convertTimeoutMs?: number;
+  host?: string;
+  port?: number;
+  dataDir?: string;
 }
 
 export interface FileItem {
@@ -21,6 +30,46 @@ export interface FileListResponse {
   page: number;
   size: number;
   items: FileItem[];
+}
+
+export interface MonitorEvent {
+  id: number;
+  ts: number;
+  kind: string;
+  level: "info" | "warn" | "error";
+  message: string;
+  detail?: Record<string, unknown>;
+  durationMs?: number;
+  cacheHit?: boolean;
+}
+
+export interface CacheBucket {
+  count: number;
+  bytes: number;
+  removed?: number;
+}
+
+export interface MonitorStats {
+  startedAt: number;
+  uptimeMs: number;
+  uptimeText?: string;
+  previewTotal: number;
+  previewToday: number;
+  convertTotal: number;
+  convertErrors: number;
+  cacheHits: number;
+  cacheMisses: number;
+  cacheHitRate: number;
+  cacheHitRateText?: string;
+  avgConvertMs: number;
+  lastErrorAt: number | null;
+  cache: {
+    convert: CacheBucket;
+    remote: CacheBucket;
+    temp: CacheBucket;
+    totalBytes: number;
+  };
+  server?: Record<string, unknown>;
 }
 
 async function parseJson<T>(res: Response): Promise<T> {
@@ -72,8 +121,45 @@ export async function encodeUrl(url: string, useAes: boolean): Promise<string> {
   return data.encoded;
 }
 
+export async function fetchMonitorStats(): Promise<MonitorStats> {
+  const res = await fetch("/api/monitor/stats");
+  return parseJson(res);
+}
+
+export async function fetchMonitorLogs(limit = 100): Promise<{
+  total: number;
+  items: MonitorEvent[];
+}> {
+  const res = await fetch(`/api/monitor/logs?limit=${limit}`);
+  return parseJson(res);
+}
+
+export async function clearMonitorLogsApi(): Promise<{ removed: number }> {
+  const res = await fetch("/api/monitor/logs", { method: "DELETE" });
+  return parseJson(res);
+}
+
+export async function clearMonitorCache(
+  scope: "convert" | "remote" | "temp" | "all",
+): Promise<{ ok: boolean; result: Record<string, CacheBucket> }> {
+  const res = await fetch("/api/monitor/cache/clear", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ scope }),
+  });
+  return parseJson(res);
+}
+
 export function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
+}
+
+export function formatTime(ts: number): string {
+  try {
+    return new Date(ts).toLocaleString();
+  } catch {
+    return String(ts);
+  }
 }

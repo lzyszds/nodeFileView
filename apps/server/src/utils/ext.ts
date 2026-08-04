@@ -32,6 +32,7 @@ export const IMAGE_EXTS = new Set([
   "tif",
   "tiff",
   "tga",
+  "heic",
 ]);
 
 export const TEXT_EXTS = new Set([
@@ -87,7 +88,6 @@ export const MEDIA_EXTS = new Set([
 ]);
 
 export const UNSUPPORTED_HINT = new Set([
-  "heic",
   "rar",
   "7z",
   "avi",
