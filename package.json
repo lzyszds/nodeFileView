@@ -1,0 +1,18 @@
+{
+  "name": "nodefileview",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Online file preview service (Node.js)",
+  "scripts": {
+    "dev": "pnpm --parallel -r run dev",
+    "dev:server": "pnpm --filter @nodefileview/server dev",
+    "dev:web": "pnpm --filter @nodefileview/web dev",
+    "build": "pnpm -r run build",
+    "start": "pnpm --filter @nodefileview/server start",
+    "typecheck": "pnpm -r run typecheck"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@9.15.0"
+}
