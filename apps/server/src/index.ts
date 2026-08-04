@@ -7,6 +7,7 @@ import fastifyStatic from "@fastify/static";
 import { config } from "./config.js";
 import { basicAuthHook } from "./middleware/auth.js";
 import { assetRoutes } from "./routes/assets.js";
+import { authRoutes } from "./routes/auth.js";
 import { docxExportRoutes } from "./routes/docxExport.js";
 import { fileRoutes } from "./routes/files.js";
 import { healthRoutes } from "./routes/health.js";
@@ -57,6 +58,7 @@ async function main() {
     }
   });
 
+  await authRoutes(app);
   await healthRoutes(app);
   await assetRoutes(app);
   await fileRoutes(app);

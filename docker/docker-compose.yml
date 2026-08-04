@@ -5,15 +5,21 @@ services:
       dockerfile: docker/Dockerfile
     ports:
       - "8013:8013"
+    # 启动时注入控制台账号密码（优先读同目录 .env，也可用命令行临时覆盖）
+    #   cp docker/.env.example docker/.env   # 改密码
+    #   BASIC_AUTH_PASS='强密码' docker compose -f docker/docker-compose.yml up -d --build
     environment:
       PORT: 8013
       HOST: 0.0.0.0
       DATA_DIR: /app/data
       LIBREOFFICE_PATH: soffice
-      BASIC_AUTH_ENABLED: "false"
-      AES_ENABLED: "false"
-      BLOCK_PRIVATE_IP: "true"
-      MAX_UPLOAD_SIZE_MB: "200"
+      BASIC_AUTH_ENABLED: "${BASIC_AUTH_ENABLED:-true}"
+      BASIC_AUTH_USER: "${BASIC_AUTH_USER:-admin}"
+      BASIC_AUTH_PASS: "${BASIC_AUTH_PASS:-change-me-strong-password}"
+      AES_ENABLED: "${AES_ENABLED:-false}"
+      BLOCK_PRIVATE_IP: "${BLOCK_PRIVATE_IP:-true}"
+      MAX_UPLOAD_SIZE_MB: "${MAX_UPLOAD_SIZE_MB:-200}"
+      TRUST_PROXY: "${TRUST_PROXY:-false}"
     volumes:
       - ../data:/app/data
     restart: unless-stopped

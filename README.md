@@ -33,12 +33,30 @@ pnpm start
 
 ### Docker
 
+镜像内已包含 LibreOffice 与 CJK 字体。控制台密码在**启动容器时**用环境变量注入（不会写进镜像）：
+
 ```bash
-docker compose -f docker/docker-compose.yml up --build
-# 打开 http://127.0.0.1:8013
+# 方式 1：命令行直接带密码启动
+BASIC_AUTH_USER=admin BASIC_AUTH_PASS='你的强密码' \
+  docker compose -f docker/docker-compose.yml up -d --build
+
+# 方式 2：写在 docker/.env（推荐，勿提交 Git）
+cp docker/.env.example docker/.env
+# 编辑 docker/.env 里的 BASIC_AUTH_PASS
+docker compose -f docker/docker-compose.yml --env-file docker/.env up -d --build
+
+# 打开 http://127.0.0.1:8013 用上面的账号密码登录控制台
 ```
 
-镜像内已包含 LibreOffice 与 CJK 字体。
+仅 `docker run` 时同样用 `-e`：
+
+```bash
+docker run --rm -p 8013:8013 -v "$PWD/data:/app/data" \
+  -e BASIC_AUTH_ENABLED=true \
+  -e BASIC_AUTH_USER=admin \
+  -e BASIC_AUTH_PASS='你的强密码' \
+  nodefileview
+```
 
 ## 环境变量
 
@@ -47,8 +65,8 @@ docker compose -f docker/docker-compose.yml up --build
 | `PORT` | 服务端口 | `8013` |
 | `DATA_DIR` | 上传/缓存/临时目录根 | `./data` |
 | `MAX_UPLOAD_SIZE_MB` | 最大上传 | `200` |
-| `BASIC_AUTH_ENABLED` | 全局 Basic Auth | `false` |
-| `BASIC_AUTH_USER` / `BASIC_AUTH_PASS` | Basic 凭据 | `admin` / `admin123` |
+| `BASIC_AUTH_ENABLED` | 控制台登录锁（上传/删除/监控等） | 本地开发 `false`；Docker 默认 `true` |
+| `BASIC_AUTH_USER` / `BASIC_AUTH_PASS` | 控制台账号密码（Docker `environment` / `.env` 注入） | `admin` / `admin123` |
 | `AES_ENABLED` | url 参数 AES-128-CBC | `false` |
 | `AES_KEY` / `AES_IV` | 16 字节密钥与 IV | `0123456789abcdef` |
 | `PREVIEW_PASSWORD` | 预览口令（非空则启用） | 空 |
@@ -72,6 +90,7 @@ curl -F file=@demo.docx http://127.0.0.1:8013/api/upload
 ## 主要 API
 
 - `GET /health`
+- `GET /api/auth/status` · `POST /api/auth/login` · `POST /api/auth/logout`
 - `GET /api/config/public`
 - `POST /api/upload`
 - `GET /api/files?page&size&q`
@@ -91,6 +110,7 @@ curl -F file=@demo.docx http://127.0.0.1:8013/api/upload
 
 ## 安全说明
 
+- **控制台锁**：`BASIC_AUTH_ENABLED=true` 时，首页需账号密码；密码用 Docker/`environment` 或 `.env` 注入即可（常见做法）。私网部署够用；公网务必换强密码并上 HTTPS。密码会进容器环境变量，不要写进镜像层或提交到 Git。`/onlinePreview` 等预览链路不要求此账号（另可用 `PREVIEW_PASSWORD`）。
 - 上传扩展名白名单，禁止可执行后缀
 - 路径均限制在 `data/` 根目录内
 - 远程拉取仅 http(s)，可选拦截私网 IP

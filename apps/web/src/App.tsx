@@ -5,6 +5,8 @@ import {
   CheckCircle2,
   FileUp,
   Folder,
+  Lock,
+  LogOut,
   RefreshCw,
   Settings,
   Search,
@@ -13,8 +15,10 @@ import {
   Upload,
 } from "lucide-react";
 import {
+  AuthRequiredError,
   deleteFile,
   encodeUrl,
+  fetchAuthStatus,
   fetchPublicConfig,
   fetchMonitorStats,
   fetchMonitorLogs,
@@ -23,6 +27,8 @@ import {
   formatSize,
   formatTime,
   listFiles,
+  loginConsole,
+  logoutConsole,
   uploadFile,
   type FileItem,
   type MonitorEvent,
@@ -71,6 +77,15 @@ const FORMAT_GROUPS = [
 
 export default function App() {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [authReady, setAuthReady] = useState(false);
+  const [authEnabled, setAuthEnabled] = useState(false);
+  const [authenticated, setAuthenticated] = useState(false);
+  const [authUser, setAuthUser] = useState<string | null>(null);
+  const [loginUser, setLoginUser] = useState("admin");
+  const [loginPass, setLoginPass] = useState("");
+  const [loginBusy, setLoginBusy] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
+
   const [config, setConfig] = useState<PublicConfig | null>(null);
   const [activeTab, setActiveTab] = useState<TabId>("files");
   const [files, setFiles] = useState<FileItem[]>([]);
@@ -98,6 +113,29 @@ export default function App() {
 
   const pageSize = 10;
 
+  const markLoggedOut = useCallback(() => {
+    setAuthenticated(false);
+    setAuthUser(null);
+    setConfig(null);
+    setFiles([]);
+    setMonitorStats(null);
+    setMonitorLogs([]);
+  }, []);
+
+  useEffect(() => {
+    fetchAuthStatus()
+      .then((s) => {
+        setAuthEnabled(s.enabled);
+        setAuthenticated(s.authenticated);
+        setAuthUser(s.user);
+      })
+      .catch(() => {
+        setAuthEnabled(false);
+        setAuthenticated(true);
+      })
+      .finally(() => setAuthReady(true));
+  }, []);
+
   const refreshMonitor = useCallback(async () => {
     const [stats, logs] = await Promise.all([
       fetchMonitorStats(),
@@ -114,33 +152,103 @@ export default function App() {
   }, [page, q]);
 
   useEffect(() => {
+    if (!authReady || !authenticated) return;
     fetchPublicConfig()
       .then((c) => {
         setConfig(c);
         setUseAes(c.aesEnabled);
       })
-      .catch((err: Error) => setMessage({ type: "err", text: err.message }));
-  }, []);
+      .catch((err: Error) => {
+        if (err instanceof AuthRequiredError) {
+          markLoggedOut();
+          return;
+        }
+        setMessage({ type: "err", text: err.message });
+      });
+  }, [authReady, authenticated, markLoggedOut]);
 
   useEffect(() => {
-    refresh().catch((err: Error) =>
-      setMessage({ type: "err", text: err.message }),
-    );
-  }, [refresh]);
+    if (!authReady || !authenticated) return;
+    refresh().catch((err: Error) => {
+      if (err instanceof AuthRequiredError) {
+        markLoggedOut();
+        return;
+      }
+      setMessage({ type: "err", text: err.message });
+    });
+  }, [authReady, authenticated, refresh, markLoggedOut]);
 
   useEffect(() => {
+    if (!authenticated) return;
     if (activeTab !== "monitor" && activeTab !== "settings") return;
-    refreshMonitor().catch((err: Error) =>
-      setMessage({ type: "err", text: err.message }),
-    );
+    refreshMonitor().catch((err: Error) => {
+      if (err instanceof AuthRequiredError) {
+        markLoggedOut();
+        return;
+      }
+      setMessage({ type: "err", text: err.message });
+    });
     if (activeTab !== "monitor") return;
     const timer = window.setInterval(() => {
       refreshMonitor().catch(() => undefined);
     }, 4000);
     return () => window.clearInterval(timer);
-  }, [activeTab, refreshMonitor]);
+  }, [authenticated, activeTab, refreshMonitor, markLoggedOut]);
+
+  async function handleLogin(e: React.FormEvent) {
+    e.preventDefault();
+    setLoginBusy(true);
+    setLoginError(null);
+    try {
+      const res = await loginConsole(loginUser.trim(), loginPass);
+      setAuthEnabled(true);
+      setAuthenticated(true);
+      setAuthUser(res.user ?? loginUser.trim());
+      setLoginPass("");
+    } catch (err) {
+      setLoginError(err instanceof Error ? err.message : "登录失败");
+    } finally {
+      setLoginBusy(false);
+    }
+  }
+
+  async function handleLogout() {
+    try {
+      await logoutConsole();
+    } catch {
+      /* ignore */
+    }
+    markLoggedOut();
+    if (authEnabled) setAuthenticated(false);
+  }
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+  const navItems = useMemo(
+    () =>
+      [
+        { id: "files" as const, label: "文件存储与控制", icon: Folder, group: "控制中心" },
+        {
+          id: "playground" as const,
+          label: "接口透传调试器",
+          icon: Terminal,
+          group: "控制中心",
+        },
+        {
+          id: "settings" as const,
+          label: "全局系统设置",
+          icon: Settings,
+          group: "系统管理",
+        },
+        {
+          id: "monitor" as const,
+          label: "转码日志与审计",
+          icon: Activity,
+          group: "系统管理",
+        },
+      ] as const,
+    [],
+  );
 
   async function handleUpload(fileList: FileList | null) {
     if (!fileList?.length) return;
@@ -249,31 +357,79 @@ export default function App() {
     }
   }
 
-  const navItems = useMemo(
-    () =>
-      [
-        { id: "files" as const, label: "文件存储与控制", icon: Folder, group: "控制中心" },
-        {
-          id: "playground" as const,
-          label: "接口透传调试器",
-          icon: Terminal,
-          group: "控制中心",
-        },
-        {
-          id: "settings" as const,
-          label: "全局系统设置",
-          icon: Settings,
-          group: "系统管理",
-        },
-        {
-          id: "monitor" as const,
-          label: "转码日志与审计",
-          icon: Activity,
-          group: "系统管理",
-        },
-      ] as const,
-    [],
-  );
+  if (!authReady) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-slate-50 text-sm text-slate-500">
+        加载中…
+      </div>
+    );
+  }
+
+  if (authEnabled && !authenticated) {
+    return (
+      <div className="relative flex h-screen w-full items-center justify-center overflow-hidden bg-slate-100">
+        <div
+          className="pointer-events-none absolute inset-0 opacity-60"
+          style={{
+            background:
+              "radial-gradient(ellipse 80% 50% at 50% -20%, #c7d2fe, transparent), radial-gradient(ellipse 60% 40% at 100% 100%, #e2e8f0, transparent)",
+          }}
+        />
+        <form
+          onSubmit={handleLogin}
+          className="relative z-10 w-full max-w-sm rounded-2xl border border-slate-200/80 bg-white p-8 shadow-lg shadow-slate-200/50"
+        >
+          <div className="mb-6 flex flex-col items-center text-center">
+            <div className="mb-3 flex size-12 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-md shadow-indigo-200">
+              <Lock className="size-5" />
+            </div>
+            <h1 className="text-lg font-bold tracking-tight text-slate-900">
+              nodeFileView
+            </h1>
+            <p className="mt-1 text-xs text-slate-500">
+              控制台已上锁，请输入账号密码
+            </p>
+          </div>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="login-user">账号</Label>
+              <Input
+                id="login-user"
+                autoComplete="username"
+                value={loginUser}
+                onChange={(e) => setLoginUser(e.target.value)}
+                required
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="login-pass">密码</Label>
+              <Input
+                id="login-pass"
+                type="password"
+                autoComplete="current-password"
+                value={loginPass}
+                onChange={(e) => setLoginPass(e.target.value)}
+                required
+              />
+            </div>
+            {loginError && (
+              <p className="text-xs text-red-600" role="alert">
+                {loginError}
+              </p>
+            )}
+            <Button type="submit" className="w-full" disabled={loginBusy}>
+              {loginBusy ? "验证中…" : "解锁进入"}
+            </Button>
+          </div>
+          <p className="mt-5 text-center text-[10px] leading-relaxed text-slate-400">
+            凭据来自环境变量 BASIC_AUTH_USER / BASIC_AUTH_PASS
+            <br />
+            （Docker 启动时可注入）
+          </p>
+        </form>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-slate-50 text-slate-900">
@@ -291,7 +447,11 @@ export default function App() {
               <span className="mt-1 text-[10px] text-slate-400">Light Sandbox</span>
             </div>
           </div>
-          <span className="size-1.5 animate-pulse rounded-full bg-emerald-500" />
+          {authEnabled ? (
+            <Lock className="size-3.5 text-slate-400" />
+          ) : (
+            <span className="size-1.5 animate-pulse rounded-full bg-emerald-500" />
+          )}
         </div>
 
         <nav className="flex-1 space-y-5 overflow-y-auto p-3">
@@ -345,6 +505,16 @@ export default function App() {
               {monitorStats?.cacheHitRateText || configHintsReady(config)}
             </span>
           </div>
+          {authEnabled && (
+            <button
+              type="button"
+              onClick={() => void handleLogout()}
+              className="mt-1 flex w-full items-center justify-center gap-1.5 rounded-lg border border-slate-200 px-2 py-1.5 text-slate-600 transition hover:bg-slate-50"
+            >
+              <LogOut className="size-3" />
+              退出 {authUser || "登录"}
+            </button>
+          )}
         </div>
       </aside>
 
