@@ -1,3 +1,8 @@
+/**
+ * Demo HTML 路由（可选）。
+ * 主控制台已改为 React + Tailwind（apps/web），不再依赖本文件拼装页面。
+ * 保留 /__demo/console7、/__demo/archive8 仅供对照旧 demo 模板。
+ */
 import type { FastifyInstance } from "fastify";
 import fs from "node:fs";
 

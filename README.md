@@ -19,8 +19,9 @@ pnpm install
 pnpm dev
 ```
 
-- 演示首页（Vite）：http://127.0.0.1:5173
+- 演示首页（Vite）：http://127.0.0.1:5173 （React + Tailwind 侧栏控制台）
 - API / 预览服务：http://127.0.0.1:8013
+- 旧 demo 模板（可选对照）：http://127.0.0.1:8013/__demo/console7
 
 生产构建后由服务端托管前端：
 
