@@ -7,6 +7,8 @@ export function renderDocxViewer(opts: {
   highlight?: string;
 }): string {
   const highlight = opts.highlight || "";
+  const safeTitle = escapeHtml(opts.title);
+  const downloadBase = opts.title.replace(/\.docx$/i, "") || "document";
 
   return layout({
     title: opts.title,
@@ -19,6 +21,7 @@ export function renderDocxViewer(opts: {
           --word-text: #242424;
           --word-muted: #616161;
           --word-accent: #185abd;
+          --sidebar-w: 280px;
         }
         html, body {
           background: var(--word-chrome) !important;
@@ -33,26 +36,117 @@ export function renderDocxViewer(opts: {
         }
         .topbar h1 { color: var(--word-text) !important; font-weight: 600; }
         .topbar .meta { color: var(--word-muted); font-size: 12px; }
-        .topbar button, .topbar .btn {
+        .topbar button, .topbar .btn, .toolbar button {
           background: #fff;
           color: var(--word-text);
           border: 1px solid var(--word-border);
           border-radius: 4px;
+          padding: 6px 10px;
+          font-size: 13px;
+          cursor: pointer;
         }
-        .topbar button:hover, .topbar .btn:hover {
+        .topbar button:hover, .toolbar button:hover {
           background: #eff6fc;
           border-color: #c7e0f4;
           color: var(--word-accent);
         }
-        .topbar button.active {
+        .topbar button.active, .toolbar button.active {
           background: #deecf9;
           border-color: #b4d6f0;
           color: var(--word-accent);
         }
-        .viewer {
+        .topbar button:disabled, .toolbar button:disabled {
+          opacity: .45;
+          cursor: not-allowed;
+        }
+        .sep { width: 1px; height: 20px; background: var(--word-border); margin: 0 4px; }
+        .shell {
+          display: grid;
+          grid-template-columns: var(--sidebar-w) 1fr;
           height: calc(100% - 49px);
+        }
+        .shell.sidebar-collapsed {
+          grid-template-columns: 0 1fr;
+        }
+        .shell.sidebar-collapsed .sidebar {
+          overflow: hidden;
+          border: 0;
+          padding: 0;
+        }
+        .sidebar {
+          background: #fafafa;
+          border-right: 1px solid var(--word-border);
+          display: flex;
+          flex-direction: column;
+          min-width: 0;
+        }
+        .sidebar-hd {
+          padding: 12px 14px;
+          font-size: 12px;
+          font-weight: 600;
+          color: var(--word-muted);
+          border-bottom: 1px solid var(--word-border);
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 8px;
+        }
+        .outline {
+          overflow: auto;
+          padding: 8px;
+          flex: 1;
+        }
+        .outline a {
+          display: block;
+          color: var(--word-text);
+          text-decoration: none;
+          padding: 6px 8px;
+          border-radius: 4px;
+          font-size: 12.5px;
+          line-height: 1.35;
+          border-left: 2px solid transparent;
+        }
+        .outline a:hover { background: #eef4fb; }
+        .outline a.active {
+          background: #deecf9;
+          border-left-color: var(--word-accent);
+          color: var(--word-accent);
+        }
+        .outline a.lv1 { font-weight: 600; }
+        .outline a.lv2 { padding-left: 18px; }
+        .outline a.lv3 { padding-left: 28px; color: #444; }
+        .outline a.lv4, .outline a.lv5, .outline a.lv6 { padding-left: 36px; color: #666; }
+        .outline .empty {
+          color: var(--word-muted);
+          font-size: 12px;
+          padding: 16px 8px;
+        }
+        .main {
+          min-width: 0;
+          display: flex;
+          flex-direction: column;
+          height: 100%;
+        }
+        .toolbar {
+          display: none;
+          gap: 6px;
+          flex-wrap: wrap;
+          align-items: center;
+          padding: 8px 12px;
+          background: #fff;
+          border-bottom: 1px solid var(--word-border);
+        }
+        .toolbar.visible { display: flex; }
+        .toolbar .hint {
+          margin-left: auto;
+          font-size: 12px;
+          color: var(--word-muted);
+        }
+        .viewer {
+          flex: 1;
           overflow: auto;
           background: linear-gradient(180deg, #6b6967 0%, var(--word-canvas) 140px);
+          position: relative;
         }
         #status {
           padding: 48px 24px;
@@ -81,6 +175,14 @@ export function renderDocxViewer(opts: {
           color: #000;
           transform-origin: top center;
         }
+        body.editing #docx-root .docx-wrapper > section.docx article {
+          outline: 1px dashed #9dc3e6;
+          outline-offset: 4px;
+          min-height: 2em;
+        }
+        body.editing #docx-root .docx-wrapper > section.docx article:focus {
+          outline: 2px solid #185abd;
+        }
         #docx-root mark.nfv-hl {
           background: #fff2a8;
           color: inherit;
@@ -96,12 +198,26 @@ export function renderDocxViewer(opts: {
             rgba(0,0,0,0.03) 180px
           ) !important;
         }
-        .watermark::after {
-          color: rgba(0,0,0,0.08) !important;
+        .watermark::after { color: rgba(0,0,0,0.08) !important; }
+        @media (max-width: 900px) {
+          :root { --sidebar-w: 220px; }
         }
-        .sep { width: 1px; height: 20px; background: var(--word-border); margin: 0 4px; }
+        @media (max-width: 720px) {
+          .shell { grid-template-columns: 1fr; }
+          .sidebar {
+            position: absolute;
+            z-index: 20;
+            left: 0; top: 49px; bottom: 0;
+            width: min(80vw, 280px);
+            box-shadow: 8px 0 24px rgba(0,0,0,.18);
+            transform: translateX(-105%);
+            transition: transform .2s ease;
+          }
+          .shell.sidebar-open .sidebar { transform: translateX(0); }
+        }
         @media print {
-          .topbar, .watermark { display: none !important; }
+          .topbar, .sidebar, .toolbar, .watermark { display: none !important; }
+          .shell { display: block; height: auto; }
           .viewer { height: auto !important; overflow: visible !important; background: #fff !important; }
           #docx-root { padding: 0 !important; }
           #docx-root .docx-wrapper > section.docx {
@@ -115,35 +231,76 @@ export function renderDocxViewer(opts: {
     body: `
       <div class="topbar">
         <div style="display:flex;align-items:center;gap:12px;min-width:0;flex:1">
-          <h1 title="${escapeHtml(opts.title)}">${escapeHtml(opts.title)}</h1>
+          <button type="button" id="toggleSidebar" title="目录">目录</button>
+          <h1 title="${safeTitle}">${safeTitle}</h1>
           <span class="meta" id="pageMeta"></span>
         </div>
         <div class="actions">
+          <button type="button" id="editBtn">编辑</button>
+          <button type="button" id="downloadBtn" disabled>下载 DOCX</button>
+          <span class="sep"></span>
           <button type="button" id="zoomOut" title="缩小">−</button>
           <button type="button" id="zoomLabel" class="active" style="min-width:64px">100%</button>
           <button type="button" id="zoomIn" title="放大">+</button>
           <span class="sep"></span>
           <button type="button" id="fitWidth">适合宽度</button>
           <button type="button" id="fitPage">实际大小</button>
-          <span class="sep"></span>
           <button type="button" id="printBtn">打印</button>
         </div>
       </div>
       ${watermarkLayer(opts.watermark)}
-      <div class="viewer" id="viewer">
-        <div id="status">正在加载 Word 文档…</div>
-        <div id="docx-root" hidden></div>
+      <div class="shell" id="shell">
+        <aside class="sidebar" id="sidebar">
+          <div class="sidebar-hd">
+            <span>文档目录</span>
+            <button type="button" id="refreshOutline" style="padding:3px 8px;font-size:12px">刷新</button>
+          </div>
+          <nav class="outline" id="outline">
+            <div class="empty">加载后自动生成标题目录</div>
+          </nav>
+        </aside>
+        <div class="main">
+          <div class="toolbar" id="editToolbar">
+            <button type="button" data-cmd="bold" title="加粗"><b>B</b></button>
+            <button type="button" data-cmd="italic" title="斜体"><i>I</i></button>
+            <button type="button" data-cmd="underline" title="下划线"><u>U</u></button>
+            <span class="sep"></span>
+            <button type="button" data-cmd="insertUnorderedList">• 列表</button>
+            <button type="button" data-cmd="insertOrderedList">1. 列表</button>
+            <span class="sep"></span>
+            <button type="button" data-block="H1">标题1</button>
+            <button type="button" data-block="H2">标题2</button>
+            <button type="button" data-block="P">正文</button>
+            <span class="sep"></span>
+            <button type="button" data-cmd="undo">撤销</button>
+            <button type="button" data-cmd="redo">重做</button>
+            <span class="hint">编辑后可下载新的 DOCX（版式会尽量保留，复杂对象可能简化）</span>
+          </div>
+          <div class="viewer" id="viewer">
+            <div id="status">正在加载 Word 文档…</div>
+            <div id="docx-root" hidden></div>
+          </div>
+        </div>
       </div>
       <script>
         (async function () {
           const fileUrl = ${JSON.stringify(opts.fileUrl)};
           const keyword = ${JSON.stringify(highlight)};
+          const downloadBase = ${JSON.stringify(downloadBase)};
           const status = document.getElementById("status");
           const root = document.getElementById("docx-root");
           const viewer = document.getElementById("viewer");
           const pageMeta = document.getElementById("pageMeta");
           const zoomLabel = document.getElementById("zoomLabel");
+          const outlineEl = document.getElementById("outline");
+          const shell = document.getElementById("shell");
+          const editBtn = document.getElementById("editBtn");
+          const downloadBtn = document.getElementById("downloadBtn");
+          const editToolbar = document.getElementById("editToolbar");
           let scale = 1;
+          let editing = false;
+          let dirty = false;
+          let originalBuffer = null;
 
           function loadScript(src) {
             return new Promise(function (resolve, reject) {
@@ -163,7 +320,7 @@ export function renderDocxViewer(opts: {
                 resolve();
               };
               s.onerror = function () {
-                reject(new Error("加载失败: " + src + "（请确认后端 /assets 可访问）"));
+                reject(new Error("加载失败: " + src));
               };
               document.head.appendChild(s);
             });
@@ -172,16 +329,13 @@ export function renderDocxViewer(opts: {
           async function ensureDocxLib() {
             if (window.docx && window.docx.renderAsync) return;
             await loadScript("/assets/jszip.min.js");
-            if (!window.JSZip) {
-              throw new Error("JSZip 未加载，请检查 /assets/jszip.min.js");
-            }
+            if (!window.JSZip) throw new Error("JSZip 未加载");
             await loadScript("/assets/docx-preview.min.js");
-            // UMD 可能稍晚挂到 window
             for (let i = 0; i < 20; i++) {
               if (window.docx && window.docx.renderAsync) return;
               await new Promise(function (r) { setTimeout(r, 50); });
             }
-            throw new Error("docx-preview 未加载，请检查 /assets/docx-preview.min.js");
+            throw new Error("docx-preview 未加载");
           }
 
           function applyZoom() {
@@ -232,18 +386,158 @@ export function renderDocxViewer(opts: {
             if (first) first.scrollIntoView({ behavior: "smooth", block: "center" });
           }
 
+          function headingLevel(el) {
+            const cls = (el.className || "").toString().toLowerCase();
+            const m = cls.match(/heading\\s*[_-]?\\s*([1-6])|标题\\s*([1-6])/);
+            if (m) return Number(m[1] || m[2]);
+            for (let i = 1; i <= 6; i++) {
+              if (cls.includes("heading" + i) || cls.includes("标题" + i)) return i;
+            }
+            const tag = el.tagName;
+            if (/^H[1-6]$/.test(tag)) return Number(tag.slice(1));
+            const style = window.getComputedStyle(el);
+            const size = parseFloat(style.fontSize) || 0;
+            const weight = style.fontWeight;
+            const bold = weight === "bold" || Number(weight) >= 600;
+            if (bold && size >= 22) return 1;
+            if (bold && size >= 18) return 2;
+            if (bold && size >= 15) return 3;
+            return 0;
+          }
+
+          function buildOutline() {
+            const nodes = root.querySelectorAll("article p, article h1, article h2, article h3, article h4, article h5, article h6");
+            const items = [];
+            let idx = 0;
+            nodes.forEach(function (el) {
+              const text = (el.textContent || "").replace(/\\s+/g, " ").trim();
+              if (!text) return;
+              const level = headingLevel(el);
+              if (!level) return;
+              if (!el.id) el.id = "nfv-h-" + (++idx);
+              items.push({ id: el.id, text: text.slice(0, 80), level: level });
+            });
+            if (!items.length) {
+              outlineEl.innerHTML = '<div class="empty">未识别到标题样式。可在编辑模式用「标题1/2」标记后刷新目录。</div>';
+              return;
+            }
+            outlineEl.innerHTML = items.map(function (it) {
+              return '<a class="lv' + it.level + '" href="#' + it.id + '" data-id="' + it.id + '">' +
+                it.text.replace(/</g, "&lt;") + "</a>";
+            }).join("");
+            outlineEl.querySelectorAll("a").forEach(function (a) {
+              a.addEventListener("click", function (e) {
+                e.preventDefault();
+                const target = document.getElementById(a.getAttribute("data-id"));
+                if (!target) return;
+                outlineEl.querySelectorAll("a").forEach(function (x) { x.classList.remove("active"); });
+                a.classList.add("active");
+                target.scrollIntoView({ behavior: "smooth", block: "center" });
+              });
+            });
+          }
+
+          function setEditing(on) {
+            editing = on;
+            document.body.classList.toggle("editing", on);
+            editBtn.textContent = on ? "完成编辑" : "编辑";
+            editBtn.classList.toggle("active", on);
+            editToolbar.classList.toggle("visible", on);
+            root.querySelectorAll("section.docx article").forEach(function (article) {
+              article.contentEditable = on ? "true" : "false";
+              if (on) {
+                article.addEventListener("input", onInput);
+              }
+            });
+            if (on) {
+              downloadBtn.disabled = false;
+              pageMeta.textContent = (pageMeta.textContent || "").replace(/ · 已修改/, "") + " · 编辑中";
+            } else {
+              buildOutline();
+              pageMeta.textContent = dirty
+                ? (pageMeta.dataset.base || "") + " · 已修改"
+                : (pageMeta.dataset.base || pageMeta.textContent);
+            }
+          }
+
+          function onInput() {
+            dirty = true;
+            downloadBtn.disabled = false;
+          }
+
+          function collectHtml() {
+            const parts = [];
+            root.querySelectorAll("section.docx article").forEach(function (article) {
+              const clone = article.cloneNode(true);
+              clone.querySelectorAll("mark.nfv-hl").forEach(function (m) {
+                const t = document.createTextNode(m.textContent || "");
+                m.replaceWith(t);
+              });
+              parts.push(clone.innerHTML);
+            });
+            return parts.join('<div style="page-break-after:always"></div>');
+          }
+
+          async function downloadDocx() {
+            downloadBtn.disabled = true;
+            downloadBtn.textContent = "导出中…";
+            try {
+              // If never edited, download original bytes for best fidelity
+              if (!dirty && originalBuffer) {
+                const blob = new Blob([originalBuffer], {
+                  type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                });
+                triggerDownload(blob, downloadBase + ".docx");
+                return;
+              }
+              const html = collectHtml();
+              const res = await fetch("/api/docx/export", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  html: html,
+                  title: downloadBase,
+                  fileName: downloadBase + "-edited.docx",
+                }),
+              });
+              if (!res.ok) {
+                const err = await res.json().catch(function () { return {}; });
+                throw new Error(err.error || ("导出失败 HTTP " + res.status));
+              }
+              const blob = await res.blob();
+              triggerDownload(blob, downloadBase + "-edited.docx");
+            } catch (err) {
+              alert(err && err.message ? err.message : String(err));
+            } finally {
+              downloadBtn.disabled = false;
+              downloadBtn.textContent = "下载 DOCX";
+            }
+          }
+
+          function triggerDownload(blob, name) {
+            const a = document.createElement("a");
+            a.href = URL.createObjectURL(blob);
+            a.download = name;
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(function () {
+              URL.revokeObjectURL(a.href);
+              a.remove();
+            }, 1000);
+          }
+
           try {
             status.textContent = "正在加载预览引擎…";
             await ensureDocxLib();
             status.textContent = "正在解析 Word 文档…";
             const res = await fetch(fileUrl);
             if (!res.ok) throw new Error("下载文档失败 HTTP " + res.status);
-            const buffer = await res.arrayBuffer();
+            originalBuffer = await res.arrayBuffer();
 
             root.hidden = false;
             status.remove();
 
-            await window.docx.renderAsync(buffer, root, null, {
+            await window.docx.renderAsync(originalBuffer, root, null, {
               className: "docx",
               inWrapper: true,
               ignoreWidth: false,
@@ -260,9 +554,13 @@ export function renderDocxViewer(opts: {
             });
 
             const pages = root.querySelectorAll("section.docx").length;
-            pageMeta.textContent = pages ? (pages + " 页 · Word 版式") : "Word 版式";
+            const baseMeta = pages ? (pages + " 页 · Word 版式") : "Word 版式";
+            pageMeta.dataset.base = baseMeta;
+            pageMeta.textContent = baseMeta;
             applyZoom();
             highlightKeyword(root, keyword);
+            buildOutline();
+            downloadBtn.disabled = false;
             if (viewer.clientWidth < 900) fitWidth();
           } catch (err) {
             status.textContent = "DOCX 预览失败：" + (err && err.message ? err.message : String(err));
@@ -270,6 +568,32 @@ export function renderDocxViewer(opts: {
             root.hidden = true;
           }
 
+          document.getElementById("toggleSidebar").onclick = function () {
+            if (window.matchMedia("(max-width: 720px)").matches) {
+              shell.classList.toggle("sidebar-open");
+            } else {
+              shell.classList.toggle("sidebar-collapsed");
+              this.classList.toggle("active");
+            }
+          };
+          document.getElementById("refreshOutline").onclick = buildOutline;
+          editBtn.onclick = function () { setEditing(!editing); };
+          downloadBtn.onclick = function () { downloadDocx(); };
+          editToolbar.querySelectorAll("[data-cmd]").forEach(function (btn) {
+            btn.addEventListener("click", function () {
+              document.execCommand(btn.getAttribute("data-cmd"), false);
+              dirty = true;
+            });
+          });
+          editToolbar.querySelectorAll("[data-block]").forEach(function (btn) {
+            btn.addEventListener("click", function () {
+              const block = btn.getAttribute("data-block");
+              if (block === "P") document.execCommand("formatBlock", false, "p");
+              else document.execCommand("formatBlock", false, block.toLowerCase());
+              dirty = true;
+              buildOutline();
+            });
+          });
           document.getElementById("zoomIn").onclick = function () {
             scale = Math.min(2.5, +(scale + 0.1).toFixed(2));
             applyZoom();
@@ -287,9 +611,7 @@ export function renderDocxViewer(opts: {
             scale = 1;
             applyZoom();
           };
-          document.getElementById("printBtn").onclick = function () {
-            window.print();
-          };
+          document.getElementById("printBtn").onclick = function () { window.print(); };
         })();
       </script>
     `,

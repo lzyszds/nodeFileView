@@ -7,6 +7,7 @@ import fastifyStatic from "@fastify/static";
 import { config } from "./config.js";
 import { basicAuthHook } from "./middleware/auth.js";
 import { assetRoutes } from "./routes/assets.js";
+import { docxExportRoutes } from "./routes/docxExport.js";
 import { fileRoutes } from "./routes/files.js";
 import { healthRoutes } from "./routes/health.js";
 import { previewRoutes } from "./routes/preview.js";
@@ -50,6 +51,7 @@ async function main() {
   await assetRoutes(app);
   await fileRoutes(app);
   await rawRoutes(app);
+  await docxExportRoutes(app);
   await previewRoutes(app);
 
   if (fs.existsSync(config.webDistDir)) {

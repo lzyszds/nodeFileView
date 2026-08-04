@@ -22,7 +22,11 @@ function resolveAsset(entryModule: string, relativeFromPkgRoot: string): string 
 
 const ASSETS: Record<string, string> = {
   "jszip.min.js": resolveAsset("jszip", "dist/jszip.min.js"),
-  "docx-preview.min.js": resolveAsset("docx-preview", "dist/docx-preview.min.js"),
+  "docx-preview.min.js": resolveAsset(
+    "docx-preview",
+    "dist/docx-preview.min.js",
+  ),
+  "xlsx.full.min.js": resolveAsset("xlsx", "dist/xlsx.full.min.js"),
 };
 
 export async function assetRoutes(app: FastifyInstance): Promise<void> {

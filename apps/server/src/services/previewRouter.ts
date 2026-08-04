@@ -9,6 +9,7 @@ import {
   renderUnsupported,
 } from "../viewers/archive.js";
 import { renderDocxViewer } from "../viewers/docx.js";
+import { renderExcelViewer } from "../viewers/excel.js";
 import { renderImageViewer } from "../viewers/image.js";
 import { renderMediaViewer } from "../viewers/media.js";
 import { renderPdfViewer } from "../viewers/pdf.js";
