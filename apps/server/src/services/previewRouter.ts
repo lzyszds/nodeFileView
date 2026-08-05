@@ -120,12 +120,25 @@ async function resolveSource(
 
   if (/^https?:\/\//i.test(url)) {
     const remote = await downloadRemoteCached(url, force);
-    // 压缩包目录/条目预览依赖 fileId；把远程缓存登记进 uploads
-    if (resolvePreviewKind(remote.ext) === "archive") {
+    const urlExt = extFromRemoteUrl(url);
+    // URL / 缓存 / 文件名任一识别为压缩包，都必须登记 fileId
+    const ext =
+      (resolvePreviewKind(remote.ext) === "archive" && remote.ext) ||
+      (resolvePreviewKind(urlExt) === "archive" && urlExt) ||
+      remote.ext ||
+      urlExt;
+    const filename =
+      remote.filename && getExt(remote.filename)
+        ? remote.filename
+        : ext
+          ? `${(remote.filename || "remote").replace(/\.[^.]+$/, "")}.${ext}`
+          : remote.filename;
+
+    if (resolvePreviewKind(ext) === "archive") {
       const stored = await ensureStoredFromDisk({
         absPath: remote.absPath,
-        originalName: remote.filename,
-        ext: remote.ext,
+        originalName: filename,
+        ext,
         stableId: `r${remoteCacheId(url).slice(0, 15)}`,
         force,
       });
@@ -138,8 +151,8 @@ async function resolveSource(
     }
     return {
       absPath: remote.absPath,
-      filename: remote.filename,
-      ext: remote.ext,
+      filename,
+      ext,
     };
   }
 
@@ -307,10 +320,25 @@ export async function buildPreview(query: PreviewQuery): Promise<PreviewResult> 
     }
 
     let source = await resolveSource(query.url, force);
-    const parentFileId = source.fileId;
 
     if (query.archiveEntry) {
-      if (!parentFileId) {
+      if (!source.fileId && /^https?:\/\//i.test(query.url)) {
+        const stored = await ensureStoredFromDisk({
+          absPath: source.absPath,
+          originalName: source.filename,
+          ext: source.ext,
+          stableId: `r${remoteCacheId(query.url).slice(0, 15)}`,
+          force,
+        });
+        source = {
+          ...source,
+          absPath: stored.path,
+          filename: stored.originalName,
+          ext: stored.ext,
+          fileId: stored.fileId,
+        };
+      }
+      if (!source.fileId) {
         return finish(
           {
             status: 400,
@@ -319,6 +347,7 @@ export async function buildPreview(query: PreviewQuery): Promise<PreviewResult> 
           { mode: "archive-entry" },
         );
       }
+      const parentFileId = source.fileId;
       const extracted = await extractArchiveEntry({
         archivePath: source.absPath,
         ext: source.ext,
@@ -338,6 +367,23 @@ export async function buildPreview(query: PreviewQuery): Promise<PreviewResult> 
     const localMeta = { title, ext: source.ext, mode: kind };
 
     if (kind === "archive" && !query.archiveEntry) {
+      // 兜底：远程包若未带 fileId，现场登记，避免 400
+      if (!source.fileId && /^https?:\/\//i.test(query.url)) {
+        const stored = await ensureStoredFromDisk({
+          absPath: source.absPath,
+          originalName: source.filename,
+          ext: source.ext,
+          stableId: `r${remoteCacheId(query.url).slice(0, 15)}`,
+          force,
+        });
+        source = {
+          ...source,
+          absPath: stored.path,
+          filename: stored.originalName,
+          ext: stored.ext,
+          fileId: stored.fileId,
+        };
+      }
       if (!source.fileId) {
         return finish(
           {

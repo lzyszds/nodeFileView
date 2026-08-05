@@ -5,6 +5,7 @@ on:
     branches: [main, master]
     paths:
       - "apps/**"
+      - "locales/**"
       - "package.json"
       - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"

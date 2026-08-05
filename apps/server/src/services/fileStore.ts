@@ -175,7 +175,8 @@ export async function ensureStoredFromDisk(opts: {
     if (existing) {
       try {
         const st = await fs.stat(opts.absPath);
-        if (st.size === existing.size) return existing;
+        const destStat = await fs.stat(existing.path).catch(() => null);
+        if (st.size === existing.size && destStat) return existing;
       } catch {
         // fall through and refresh
       }

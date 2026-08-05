@@ -121,10 +121,10 @@ export type PreviewKind =
   | "unsupported";
 
 export function getExt(filename: string): string {
-  const base = filename.split("?")[0]?.split("#")[0] ?? filename;
+  const base = (filename.split("?")[0]?.split("#")[0] ?? filename).trim();
   const idx = base.lastIndexOf(".");
-  if (idx < 0) return "";
-  return base.slice(idx + 1).toLowerCase();
+  if (idx < 0 || idx === base.length - 1) return "";
+  return base.slice(idx + 1).toLowerCase().trim();
 }
 
 export function resolvePreviewKind(ext: string): PreviewKind {
