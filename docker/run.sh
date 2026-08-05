@@ -1,14 +1,20 @@
 #!/usr/bin/env bash
 # nodeFileView 一键启动（对齐 kkFileView 的 -e 注入方式）
+#
 # 用法：
 #   chmod +x docker/run.sh
-#   ./docker/run.sh
-# 或先改下面变量再执行。
+#   BASIC_AUTH_PASS='强密码' ./docker/run.sh
+#
+# Apple Silicon 建议直接拉 GitHub Actions 打好的 amd64 镜像：
+#   IMAGE=ghcr.io/<owner>/nodefileview:1.0.0 ./docker/run.sh
+#
+# 本地没有镜像时：若 IMAGE 是 ghcr.io/... 则 docker pull --platform linux/amd64；
+# 否则在本机 docker build（arm64 机上构建 amd64 很慢，不推荐）。
 
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-IMAGE="${IMAGE:-nodefileview}"
+IMAGE="${IMAGE:-nodefileview:1.0.0}"
 NAME="${NAME:-nodefileview}"
 HOST_PORT="${HOST_PORT:-8013}"
 
@@ -21,13 +27,21 @@ NOT_TRUST_HOST="${NOT_TRUST_HOST:-localhost,127.0.0.1,0.0.0.0,::1,169.254.*,192.
 
 mkdir -p "$ROOT/data"
 
-# 若镜像不存在则先构建
-if ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
-  echo "Building image $IMAGE ..."
-  docker build -t "$IMAGE" -f "$ROOT/docker/Dockerfile" "$ROOT"
-fi
+ensure_image() {
+  if docker image inspect "$IMAGE" >/dev/null 2>&1; then
+    return 0
+  fi
+  if [[ "$IMAGE" == ghcr.io/* ]]; then
+    echo "Pulling $IMAGE (linux/amd64) ..."
+    docker pull --platform linux/amd64 "$IMAGE"
+    return 0
+  fi
+  echo "Building image $IMAGE locally (prefer CI amd64 image on Apple Silicon) ..."
+  docker build --platform linux/amd64 -t "$IMAGE" -f "$ROOT/docker/Dockerfile" "$ROOT"
+}
 
-# 已有同名容器则先停删
+ensure_image
+
 if docker ps -a --format '{{.Names}}' | grep -qx "$NAME"; then
   echo "Removing existing container $NAME ..."
   docker rm -f "$NAME" >/dev/null
@@ -49,4 +63,5 @@ docker run -d --name "$NAME" --restart=always \
 echo
 echo "Started: http://127.0.0.1:${HOST_PORT}"
 echo "Login:   $BASIC_AUTH_USER / (your BASIC_AUTH_PASS)"
+echo "Image:   $IMAGE (platform linux/amd64)"
 echo "Logs:    docker logs -f $NAME"

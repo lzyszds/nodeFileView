@@ -33,39 +33,39 @@ pnpm start
 
 ### Docker
 
-镜像内已包含 LibreOffice 与 CJK 字体。安全相关配置在**启动容器时**用 `-e` 注入（对齐 kkFileView 风格）。
+镜像内已包含 LibreOffice 与 CJK 字体。
 
-**推荐：下次直接跑脚本**
+**分工**
 
-```bash
-# 先改 docker/run.sh 里的密码 / TRUST_HOST，或用环境变量覆盖
-BASIC_AUTH_PASS='你的强密码' ./docker/run.sh
-```
+1. **GitHub Actions**：云端打出 `linux/amd64` 镜像并推到 GHCR（本机 arm64 不必 build）。
+2. **服务器**：`docker pull` + `docker run -e ...` 启动。
 
-脚本路径：[`docker/run.sh`](docker/run.sh)（会构建镜像、绑定 `127.0.0.1:8013`、挂载 `./data`）。
+Workflow：[`.github/workflows/docker-build.yml`](.github/workflows/docker-build.yml)  
+推送 `main`/`master` 或手动跑 `Docker Build (amd64)`。
 
-**或 Compose**
+镜像：`ghcr.io/<owner>/nodefileview:1.0.0`  
+（私有包：`echo $GH_TOKEN | docker login ghcr.io -u USER --password-stdin`）
 
-```bash
-cp docker/.env.example docker/.env   # 改密码与 TRUST_HOST
-docker compose -f docker/docker-compose.yml --env-file docker/.env up -d --build
-```
-
-**或手写 docker run**
+**服务器上运行（主流程）**
 
 ```bash
+docker pull --platform linux/amd64 ghcr.io/<owner>/nodefileview:1.0.0
+
 docker run -d --name nodefileview --restart=always \
   --platform linux/amd64 \
   -p 127.0.0.1:8013:8013 \
-  -v "$PWD/data:/app/data" \
+  -v /path/to/data:/app/data \
   -e BASIC_AUTH_ENABLED=true \
   -e BASIC_AUTH_USER=admin \
   -e BASIC_AUTH_PASS='你的强密码' \
   -e BASE_URL=https://preview.qqlink.info \
   -e 'TRUST_HOST=*.my-imcloud.com,*.chat.qqlink.*' \
   -e 'NOT_TRUST_HOST=localhost,127.0.0.1,0.0.0.0,169.254.*,192.168.*,10.*,172.16.*,172.17.*,172.18.*,172.19.*,172.20.*,172.21.*,172.22.*,172.23.*,172.24.*,172.25.*,172.26.*,172.27.*,172.28.*,172.29.*,172.30.*,172.31.*' \
-  nodefileview
+  ghcr.io/<owner>/nodefileview:1.0.0
 ```
+
+把上面命令存到服务器自己的脚本即可（例如 `/opt/nodefileview/run.sh`）。仓库里的 `docker/run.sh` 只是可选本地调试工具，不是上线必经步骤。
+
 ## 环境变量
 
 | 变量 | 说明 | 默认 |
