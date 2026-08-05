@@ -22,20 +22,76 @@ function isPrivateIpv4(ip: string): boolean {
   return ranges.some(([start, end]) => n >= start && n <= end);
 }
 
-function isPrivateIpv6(ip: string): boolean {
+function extractMappedIpv4(ip: string): string | null {
   const lower = ip.toLowerCase();
-  return (
-    lower === "::1" ||
-    lower.startsWith("fc") ||
-    lower.startsWith("fd") ||
-    lower.startsWith("fe80")
-  );
+  if (lower.startsWith("::ffff:")) {
+    const rest = lower.slice("::ffff:".length);
+    if (net.isIP(rest) === 4) return rest;
+  }
+  return null;
+}
+
+function isPrivateIpv6(ip: string): boolean {
+  const mapped = extractMappedIpv4(ip);
+  if (mapped) return isPrivateIpv4(mapped);
+
+  const lower = ip.toLowerCase();
+  if (lower === "::1" || lower === "::") return true;
+  if (lower.startsWith("fc") || lower.startsWith("fd")) return true;
+  if (lower.startsWith("fe80")) return true;
+  return false;
 }
 
 export function isPrivateIp(ip: string): boolean {
   if (net.isIP(ip) === 4) return isPrivateIpv4(ip);
   if (net.isIP(ip) === 6) return isPrivateIpv6(ip);
   return true;
+}
+
+/** `*.example.com` / `10.*` / `172.16.*` → RegExp */
+export function hostPatternToRegExp(pattern: string): RegExp {
+  const escaped = pattern
+    .toLowerCase()
+    .replace(/[.+?^${}()|[\]\\]/g, "\\$&")
+    .replace(/\*/g, ".*");
+  return new RegExp(`^${escaped}$`, "i");
+}
+
+export function hostMatchesAny(host: string, patterns: string[]): boolean {
+  if (!patterns.length) return false;
+  const h = host.toLowerCase().replace(/^\[|\]$/g, "");
+  return patterns.some((p) => hostPatternToRegExp(p).test(h));
+}
+
+async function assertHostAllowed(hostname: string): Promise<void> {
+  const host = hostname.replace(/^\[|\]$/g, "").toLowerCase();
+
+  if (hostMatchesAny(host, config.notTrustHost)) {
+    throw new Error(`Host is not trusted: ${host}`);
+  }
+
+  if (config.trustHost.length > 0 && !hostMatchesAny(host, config.trustHost)) {
+    throw new Error(`Host is not in TRUST_HOST allowlist: ${host}`);
+  }
+
+  if (!config.blockPrivateIp) return;
+
+  if (net.isIP(host)) {
+    if (isPrivateIp(host)) {
+      throw new Error("Private IP addresses are blocked");
+    }
+    return;
+  }
+
+  const records = await dns.lookup(host, { all: true });
+  for (const record of records) {
+    if (isPrivateIp(record.address)) {
+      throw new Error("URL resolves to a private IP address");
+    }
+    if (hostMatchesAny(record.address, config.notTrustHost)) {
+      throw new Error(`Resolved address is not trusted: ${record.address}`);
+    }
+  }
 }
 
 export async function assertSafeRemoteUrl(rawUrl: string): Promise<URL> {
@@ -50,21 +106,45 @@ export async function assertSafeRemoteUrl(rawUrl: string): Promise<URL> {
     throw new Error("Only http/https URLs are allowed");
   }
 
-  if (!config.blockPrivateIp) return url;
-
-  const hostname = url.hostname;
-  if (net.isIP(hostname)) {
-    if (isPrivateIp(hostname)) {
-      throw new Error("Private IP addresses are blocked");
-    }
-    return url;
-  }
-
-  const records = await dns.lookup(hostname, { all: true });
-  for (const record of records) {
-    if (isPrivateIp(record.address)) {
-      throw new Error("URL resolves to a private IP address");
-    }
-  }
+  await assertHostAllowed(url.hostname);
   return url;
+}
+
+const MAX_REDIRECTS = 5;
+
+/**
+ * 安全拉取：每跳重定向都重新跑 TRUST_HOST / NOT_TRUST_HOST / 私网校验。
+ */
+export async function safeFetch(
+  rawUrl: string,
+  init: RequestInit = {},
+): Promise<Response> {
+  let current = await assertSafeRemoteUrl(rawUrl);
+  const headers = new Headers(init.headers || {});
+  if (!headers.has("User-Agent")) {
+    headers.set("User-Agent", "nodeFileView/1.0");
+  }
+
+  for (let i = 0; i <= MAX_REDIRECTS; i++) {
+    const res = await fetch(current, {
+      ...init,
+      headers,
+      redirect: "manual",
+      signal: init.signal,
+    });
+
+    if (res.status >= 300 && res.status < 400) {
+      const loc = res.headers.get("location");
+      if (!loc) {
+        throw new Error(`Redirect without Location (${res.status})`);
+      }
+      const next = new URL(loc, current);
+      current = await assertSafeRemoteUrl(next.toString());
+      continue;
+    }
+
+    return res;
+  }
+
+  throw new Error("Too many redirects");
 }

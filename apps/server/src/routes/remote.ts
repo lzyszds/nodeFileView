@@ -1,12 +1,12 @@
 import fsp from "node:fs/promises";
 import path from "node:path";
 import type { FastifyInstance } from "fastify";
-import mime from "mime-types";
 import {
   downloadRemoteCached,
   findCachedRemote,
   openCachedRemoteStream,
 } from "../services/remoteCache.js";
+import { applySafeContentHeaders } from "../services/security/contentSafety.js";
 import { getExt } from "../utils/ext.js";
 
 export async function remoteRoutes(app: FastifyInstance): Promise<void> {
@@ -31,20 +31,13 @@ export async function remoteRoutes(app: FastifyInstance): Promise<void> {
         };
       }
 
-      const type =
-        mime.lookup(hit.ext) ||
-        mime.lookup(hit.filename) ||
-        "application/octet-stream";
       const stat = await fsp.stat(hit.absPath);
-
-      reply.header("Content-Type", type);
+      applySafeContentHeaders(reply, {
+        filename: hit.filename,
+        ext: hit.ext,
+      });
       reply.header("Content-Length", String(stat.size));
-      reply.header(
-        "Content-Disposition",
-        `inline; filename="${encodeURIComponent(hit.filename)}"`,
-      );
       reply.header("Cache-Control", "private, max-age=3600");
-      reply.header("X-Content-Type-Options", "nosniff");
       return reply.send(openCachedRemoteStream(hit.absPath));
     } catch (err) {
       const message = err instanceof Error ? err.message : "Remote fetch failed";

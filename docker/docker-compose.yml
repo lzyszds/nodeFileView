@@ -4,22 +4,27 @@ services:
       context: ..
       dockerfile: docker/Dockerfile
     ports:
-      - "8013:8013"
-    # 启动时注入控制台账号密码（优先读同目录 .env，也可用命令行临时覆盖）
-    #   cp docker/.env.example docker/.env   # 改密码
-    #   BASIC_AUTH_PASS='强密码' docker compose -f docker/docker-compose.yml up -d --build
+      # 仅本机可达；公网请前面挂反代，并改成 "8013:8013"
+      - "127.0.0.1:8013:8013"
     environment:
       PORT: 8013
       HOST: 0.0.0.0
       DATA_DIR: /app/data
       LIBREOFFICE_PATH: soffice
+      # —— 控制台锁（Docker 默认开启，请改密码）——
       BASIC_AUTH_ENABLED: "${BASIC_AUTH_ENABLED:-true}"
       BASIC_AUTH_USER: "${BASIC_AUTH_USER:-admin}"
       BASIC_AUTH_PASS: "${BASIC_AUTH_PASS:-change-me-strong-password}"
-      AES_ENABLED: "${AES_ENABLED:-false}"
+      # —— 类似 kkFileView 的远程拉取白/黑名单 ——
+      BASE_URL: "${BASE_URL:-}"
+      TRUST_HOST: "${TRUST_HOST:-}"
+      NOT_TRUST_HOST: "${NOT_TRUST_HOST:-localhost,127.0.0.1,0.0.0.0,::1,169.254.*,192.168.*,10.*,172.16.*,172.17.*,172.18.*,172.19.*,172.20.*,172.21.*,172.22.*,172.23.*,172.24.*,172.25.*,172.26.*,172.27.*,172.28.*,172.29.*,172.30.*,172.31.*,100.64.*}"
       BLOCK_PRIVATE_IP: "${BLOCK_PRIVATE_IP:-true}"
+      AES_ENABLED: "${AES_ENABLED:-false}"
       MAX_UPLOAD_SIZE_MB: "${MAX_UPLOAD_SIZE_MB:-200}"
+      MAX_ARCHIVE_ENTRY_MB: "${MAX_ARCHIVE_ENTRY_MB:-100}"
       TRUST_PROXY: "${TRUST_PROXY:-false}"
+      ALLOW_EMBED: "${ALLOW_EMBED:-true}"
     volumes:
       - ../data:/app/data
     restart: unless-stopped

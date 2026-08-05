@@ -8,7 +8,7 @@ import { config } from "../config.js";
 import { getExt, isAllowedUploadExt } from "../utils/ext.js";
 import { ensureDir, safeJoin, sanitizeFilename } from "../utils/path.js";
 import { recordMonitorEvent } from "./monitor.js";
-import { assertSafeRemoteUrl } from "./security/ssrf.js";
+import { assertSafeRemoteUrl, safeFetch } from "./security/ssrf.js";
 
 export function remoteCacheId(url: string): string {
   return crypto.createHash("sha256").update(url).digest("hex").slice(0, 40);
@@ -86,9 +86,8 @@ export async function downloadRemoteCached(
   const started = Date.now();
 
   try {
-    const res = await fetch(url, {
+    const res = await safeFetch(url.toString(), {
       signal: controller.signal,
-      redirect: "follow",
       headers: { "User-Agent": "nodeFileView/1.0" },
     });
     if (!res.ok || !res.body) {

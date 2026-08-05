@@ -2,10 +2,10 @@ import fs from "node:fs";
 import fsp from "node:fs/promises";
 import path from "node:path";
 import type { FastifyInstance } from "fastify";
-import mime from "mime-types";
 import { config } from "../config.js";
 import { extractArchiveEntry, listArchive } from "../services/archives/zipService.js";
 import { getFile } from "../services/fileStore.js";
+import { applySafeContentHeaders } from "../services/security/contentSafety.js";
 import { PathEscapeError, safeJoin } from "../utils/path.js";
 
 export async function rawRoutes(app: FastifyInstance): Promise<void> {
@@ -14,9 +14,11 @@ export async function rawRoutes(app: FastifyInstance): Promise<void> {
     async (request, reply) => {
       const file = await getFile(request.params.fileId);
       if (!file) return reply.code(404).send({ error: "Not found" });
-      const type = file.mime || mime.lookup(file.ext) || "application/octet-stream";
-      reply.header("Content-Type", type);
-      reply.header("X-Content-Type-Options", "nosniff");
+      // 不信任上传时客户端声明的 mime，按扩展名安全输出
+      applySafeContentHeaders(reply, {
+        filename: file.name,
+        ext: file.ext,
+      });
       reply.header("Cache-Control", "private, max-age=120");
       return reply.send(fs.createReadStream(file.path));
     },
@@ -32,9 +34,7 @@ export async function rawRoutes(app: FastifyInstance): Promise<void> {
         }
         const abs = safeJoin(config.cacheDir, name);
         await fsp.access(abs);
-        const type = mime.lookup(name) || "application/octet-stream";
-        reply.header("Content-Type", type);
-        reply.header("X-Content-Type-Options", "nosniff");
+        applySafeContentHeaders(reply, { filename: name });
         return reply.send(fs.createReadStream(abs));
       } catch (err) {
         if (err instanceof PathEscapeError) {
@@ -50,15 +50,12 @@ export async function rawRoutes(app: FastifyInstance): Promise<void> {
     async (request, reply) => {
       try {
         const name = path.basename(request.params.name);
-        // allow serve-<nanoid>.<ext>  (nanoid may include _ and -)
         if (!/^(serve-)?[\w.-]+$/.test(name)) {
           return reply.code(400).send({ error: "Invalid temp name" });
         }
         const abs = safeJoin(config.tempDir, name);
         await fsp.access(abs);
-        const type = mime.lookup(name) || "application/octet-stream";
-        reply.header("Content-Type", type);
-        reply.header("X-Content-Type-Options", "nosniff");
+        applySafeContentHeaders(reply, { filename: name });
         reply.header("Cache-Control", "private, max-age=300");
         return reply.send(fs.createReadStream(abs));
       } catch (err) {
@@ -79,7 +76,8 @@ export async function rawRoutes(app: FastifyInstance): Promise<void> {
         const entries = await listArchive(file.path, file.ext);
         return { fileId: file.fileId, entries };
       } catch (err) {
-        const message = err instanceof Error ? err.message : "Failed to list archive";
+        const message =
+          err instanceof Error ? err.message : "Failed to list archive";
         return reply.code(400).send({ error: message });
       }
     },
@@ -99,13 +97,10 @@ export async function rawRoutes(app: FastifyInstance): Promise<void> {
         ext: file.ext,
         entryPath,
       });
-      const type = mime.lookup(extracted.ext) || "application/octet-stream";
-      reply.header("Content-Type", type);
-      reply.header("X-Content-Type-Options", "nosniff");
-      reply.header(
-        "Content-Disposition",
-        `inline; filename="${encodeURIComponent(extracted.filename)}"`,
-      );
+      applySafeContentHeaders(reply, {
+        filename: extracted.filename,
+        ext: extracted.ext,
+      });
       return reply.send(fs.createReadStream(extracted.absPath));
     } catch (err) {
       const message = err instanceof Error ? err.message : "Extract failed";

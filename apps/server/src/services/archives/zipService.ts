@@ -84,9 +84,20 @@ export async function extractArchiveEntry(opts: {
     if (!entry || entry.isDirectory) {
       throw new Error("Archive entry not found");
     }
+    const uncompressed = Number(entry.header?.size || 0);
+    if (uncompressed > config.maxArchiveEntryBytes) {
+      throw new Error(
+        `Archive entry exceeds max size (${Math.round(config.maxArchiveEntryBytes / 1024 / 1024)} MB)`,
+      );
+    }
     const filename = path.posix.basename(safeEntry);
     const absPath = safeJoin(outDir, filename);
     await fs.writeFile(absPath, entry.getData());
+    const stat = await fs.stat(absPath);
+    if (stat.size > config.maxArchiveEntryBytes) {
+      await fs.unlink(absPath).catch(() => undefined);
+      throw new Error("Archive entry exceeds max size after extract");
+    }
     return { absPath, filename, ext: getExt(filename) };
   }
 
@@ -100,6 +111,11 @@ export async function extractArchiveEntry(opts: {
     });
     const absPath = safeJoin(outDir, ...safeEntry.split("/"));
     await fs.access(absPath);
+    const stat = await fs.stat(absPath);
+    if (stat.size > config.maxArchiveEntryBytes) {
+      await fs.unlink(absPath).catch(() => undefined);
+      throw new Error("Archive entry exceeds max size after extract");
+    }
     const filename = path.basename(absPath);
     return { absPath, filename, ext: getExt(filename) };
   }

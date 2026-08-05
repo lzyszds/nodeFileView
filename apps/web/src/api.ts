@@ -12,7 +12,9 @@ export interface PublicConfig {
   convertTimeoutMs?: number;
   host?: string;
   port?: number;
-  dataDir?: string;
+  baseUrl?: string;
+  trustHost?: string[];
+  notTrustHostEnabled?: boolean;
 }
 
 export interface AuthStatus {

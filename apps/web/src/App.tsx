@@ -887,9 +887,17 @@ export default function App() {
                           </span>
                         </div>
                         <div>
-                          数据目录：{" "}
+                          BASE_URL：{" "}
                           <span className="font-mono break-all">
-                            {config.dataDir || "-"}
+                            {config.baseUrl || "（未设置）"}
+                          </span>
+                        </div>
+                        <div>
+                          TRUST_HOST：{" "}
+                          <span className="font-mono break-all">
+                            {config.trustHost?.length
+                              ? config.trustHost.join(", ")
+                              : "（未限制，仍受 NOT_TRUST_HOST）"}
                           </span>
                         </div>
                         <div>

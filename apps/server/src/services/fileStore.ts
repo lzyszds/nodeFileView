@@ -7,7 +7,7 @@ import mime from "mime-types";
 import { config } from "../config.js";
 import { getExt, isAllowedUploadExt } from "../utils/ext.js";
 import { ensureDir, safeJoin, sanitizeFilename } from "../utils/path.js";
-import { assertSafeRemoteUrl } from "./security/ssrf.js";
+import { assertSafeRemoteUrl, safeFetch } from "./security/ssrf.js";
 
 export interface StoredFile {
   fileId: string;
@@ -158,9 +158,8 @@ export async function downloadRemoteToTemp(
   const timer = setTimeout(() => controller.abort(), 30000);
 
   try {
-    const res = await fetch(url, {
+    const res = await safeFetch(url.toString(), {
       signal: controller.signal,
-      redirect: "follow",
       headers: { "User-Agent": "nodeFileView/1.0" },
     });
     if (!res.ok || !res.body) {

@@ -33,31 +33,39 @@ pnpm start
 
 ### Docker
 
-镜像内已包含 LibreOffice 与 CJK 字体。控制台密码在**启动容器时**用环境变量注入（不会写进镜像）：
+镜像内已包含 LibreOffice 与 CJK 字体。安全相关配置在**启动容器时**用 `-e` 注入（对齐 kkFileView 风格）。
+
+**推荐：下次直接跑脚本**
 
 ```bash
-# 方式 1：命令行直接带密码启动
-BASIC_AUTH_USER=admin BASIC_AUTH_PASS='你的强密码' \
-  docker compose -f docker/docker-compose.yml up -d --build
-
-# 方式 2：写在 docker/.env（推荐，勿提交 Git）
-cp docker/.env.example docker/.env
-# 编辑 docker/.env 里的 BASIC_AUTH_PASS
-docker compose -f docker/docker-compose.yml --env-file docker/.env up -d --build
-
-# 打开 http://127.0.0.1:8013 用上面的账号密码登录控制台
+# 先改 docker/run.sh 里的密码 / TRUST_HOST，或用环境变量覆盖
+BASIC_AUTH_PASS='你的强密码' ./docker/run.sh
 ```
 
-仅 `docker run` 时同样用 `-e`：
+脚本路径：[`docker/run.sh`](docker/run.sh)（会构建镜像、绑定 `127.0.0.1:8013`、挂载 `./data`）。
+
+**或 Compose**
 
 ```bash
-docker run --rm -p 8013:8013 -v "$PWD/data:/app/data" \
+cp docker/.env.example docker/.env   # 改密码与 TRUST_HOST
+docker compose -f docker/docker-compose.yml --env-file docker/.env up -d --build
+```
+
+**或手写 docker run**
+
+```bash
+docker run -d --name nodefileview --restart=always \
+  --platform linux/amd64 \
+  -p 127.0.0.1:8013:8013 \
+  -v "$PWD/data:/app/data" \
   -e BASIC_AUTH_ENABLED=true \
   -e BASIC_AUTH_USER=admin \
   -e BASIC_AUTH_PASS='你的强密码' \
+  -e BASE_URL=https://preview.qqlink.info \
+  -e 'TRUST_HOST=*.my-imcloud.com,*.chat.qqlink.*' \
+  -e 'NOT_TRUST_HOST=localhost,127.0.0.1,0.0.0.0,169.254.*,192.168.*,10.*,172.16.*,172.17.*,172.18.*,172.19.*,172.20.*,172.21.*,172.22.*,172.23.*,172.24.*,172.25.*,172.26.*,172.27.*,172.28.*,172.29.*,172.30.*,172.31.*' \
   nodefileview
 ```
-
 ## 环境变量
 
 | 变量 | 说明 | 默认 |
@@ -65,13 +73,18 @@ docker run --rm -p 8013:8013 -v "$PWD/data:/app/data" \
 | `PORT` | 服务端口 | `8013` |
 | `DATA_DIR` | 上传/缓存/临时目录根 | `./data` |
 | `MAX_UPLOAD_SIZE_MB` | 最大上传 | `200` |
-| `BASIC_AUTH_ENABLED` | 控制台登录锁（上传/删除/监控等） | 本地开发 `false`；Docker 默认 `true` |
-| `BASIC_AUTH_USER` / `BASIC_AUTH_PASS` | 控制台账号密码（Docker `environment` / `.env` 注入） | `admin` / `admin123` |
+| `MAX_ARCHIVE_ENTRY_MB` | 压缩包单文件解压上限 | `100` |
+| `BASIC_AUTH_ENABLED` | 控制台登录锁 | 本地 `false`；Docker `true` |
+| `BASIC_AUTH_USER` / `BASIC_AUTH_PASS` | 控制台账号密码 | `admin` / 请改 |
+| `BASE_URL` | 对外基址（展示/接入用） | 空 |
+| `TRUST_HOST` | 远程 URL 主机白名单（`*` 通配，空=不额外限制） | 空 |
+| `NOT_TRUST_HOST` | 远程 URL 主机黑名单 | localhost / 私网段等 |
+| `BLOCK_PRIVATE_IP` | DNS 解析后禁私网 IP | `true` |
 | `AES_ENABLED` | url 参数 AES-128-CBC | `false` |
 | `AES_KEY` / `AES_IV` | 16 字节密钥与 IV | `0123456789abcdef` |
 | `PREVIEW_PASSWORD` | 预览口令（非空则启用） | 空 |
-| `BLOCK_PRIVATE_IP` | 远程 URL 禁私网（SSRF） | `true` |
 | `LIBREOFFICE_PATH` | soffice 可执行文件 | `soffice` |
+| `ALLOW_EMBED` | 允许 iframe / webview 嵌预览 | `true` |
 | `FORCE` / `forceUpdatedCache` | 查询参数刷新转换缓存 | — |
 
 ## 预览接入
@@ -110,9 +123,9 @@ curl -F file=@demo.docx http://127.0.0.1:8013/api/upload
 
 ## 安全说明
 
-- **控制台锁**：`BASIC_AUTH_ENABLED=true` 时，首页需账号密码；密码用 Docker/`environment` 或 `.env` 注入即可（常见做法）。私网部署够用；公网务必换强密码并上 HTTPS。密码会进容器环境变量，不要写进镜像层或提交到 Git。`/onlinePreview` 等预览链路不要求此账号（另可用 `PREVIEW_PASSWORD`）。
+- **控制台锁**：`BASIC_AUTH_ENABLED=true` 时，首页需账号密码；Docker/`-e` 注入。`TRUST_HOST` / `NOT_TRUST_HOST` 限制远程拉取（跳转每跳复检）。HTML/JS 经 `/api/raw|/api/remote` 强制下载，避免同源挂马。
 - 上传扩展名白名单，禁止可执行后缀
 - 路径均限制在 `data/` 根目录内
-- 远程拉取仅 http(s)，可选拦截私网 IP
+- 远程拉取仅 http(s)，默认拦截私网 IP 与 IPv4-mapped IPv6
 - LibreOffice 转换超时强制结束
-- 响应头包含 `X-Content-Type-Options`、`X-Frame-Options` 等
+- 响应头包含 `X-Content-Type-Options` 等
