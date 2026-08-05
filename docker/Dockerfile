@@ -8,6 +8,7 @@ COPY apps/server/package.json apps/server/
 COPY apps/web/package.json apps/web/
 RUN pnpm install --frozen-lockfile=false
 COPY apps ./apps
+COPY locales ./locales
 COPY data ./data
 RUN pnpm --filter @nodefileview/web build \
   && pnpm --filter @nodefileview/server build
@@ -31,6 +32,7 @@ RUN pnpm install --filter @nodefileview/server --prod --frozen-lockfile=false
 
 COPY --from=build /app/apps/server/dist ./apps/server/dist
 COPY --from=build /app/apps/web/dist ./apps/web/dist
+COPY locales ./locales
 COPY apps/server/package.json ./apps/server/
 COPY .env.example ./.env.example
 

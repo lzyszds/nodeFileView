@@ -1,3 +1,4 @@
+import { previewUi } from "../i18n/index.js";
 import { escapeHtml, layout, watermarkLayer } from "./layout.js";
 
 export function renderImageViewer(opts: {
@@ -8,22 +9,23 @@ export function renderImageViewer(opts: {
 }): string {
   const isHeic = (opts.ext || "").toLowerCase() === "heic";
   const ext = opts.ext || "img";
+  const ui = previewUi();
 
   return layout({
     title: opts.title,
     ext,
     engine: isHeic ? "heic2any" : "Canvas Matrix",
     headerActions: `
-      <button type="button" data-act="download" class="primary">下载</button>
+      <button type="button" data-act="download" class="primary">${escapeHtml(ui.download)}</button>
     `,
     floatingBar: `
-      <button type="button" data-act="zoomOut" title="缩小">−</button>
+      <button type="button" data-act="zoomOut" title="${escapeHtml(ui.zoomOut)}">−</button>
       <span class="mono" id="zoomLabel">100%</span>
-      <button type="button" data-act="zoomIn" title="放大">+</button>
+      <button type="button" data-act="zoomIn" title="${escapeHtml(ui.zoomIn)}">+</button>
       <div class="sep"></div>
-      <button type="button" data-act="rotateR" title="旋转">↻</button>
-      <button type="button" data-act="flipH" title="水平镜像">⇋</button>
-      <button type="button" data-act="flipV" title="垂直镜像">⇵</button>
+      <button type="button" data-act="rotateR" title="${escapeHtml(ui.rotate)}">↻</button>
+      <button type="button" data-act="flipH" title="${escapeHtml(ui.flipH)}">⇋</button>
+      <button type="button" data-act="flipV" title="${escapeHtml(ui.flipV)}">⇵</button>
       <div class="sep"></div>
       <button type="button" data-act="fit">适应</button>
       <button type="button" data-act="reset">1:1</button>
@@ -61,6 +63,7 @@ export function renderImageViewer(opts: {
       </div>
       <script>
         (async function () {
+          const UI = ${JSON.stringify(ui)};
           const imageUrl = ${JSON.stringify(opts.imageUrl)};
           const isHeic = ${isHeic ? "true" : "false"};
           const img = document.getElementById("img");
@@ -109,7 +112,7 @@ export function renderImageViewer(opts: {
 
           try { await load(); }
           catch (err) {
-            status.textContent = "图片预览失败：" + (err && err.message ? err.message : String(err));
+            status.textContent = UI.imageFailed.replace("{error}", err && err.message ? err.message : String(err));
           }
 
           document.querySelectorAll("[data-act]").forEach(function (btn) {
@@ -133,14 +136,14 @@ export function renderImageViewer(opts: {
             });
           });
           [
-            ["zoomOut", "缩小"],
-            ["zoomIn", "放大"],
-            ["rotateR", "顺时针旋转"],
-            ["flipH", "水平镜像"],
-            ["flipV", "垂直镜像"],
-            ["fit", "适应窗口"],
-            ["reset", "原始比例"],
-            ["download", "下载"],
+            ["zoomOut", UI.zoomOut],
+            ["zoomIn", UI.zoomIn],
+            ["rotateR", UI.rotate],
+            ["flipH", UI.flipH],
+            ["flipV", UI.flipV],
+            ["fit", "Fit"],
+            ["reset", "1:1"],
+            ["download", UI.download],
           ].forEach(function (item) {
             window.__NFV_PREVIEW__?.registerButtonAction(item[0], { label: item[1] });
           });

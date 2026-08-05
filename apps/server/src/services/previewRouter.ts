@@ -28,6 +28,7 @@ import {
   remoteProxyUrl,
 } from "./remoteCache.js";
 import { recordMonitorEvent } from "./monitor.js";
+import { t } from "../i18n/index.js";
 
 export interface PreviewQuery {
   url: string;
@@ -313,9 +314,7 @@ export async function buildPreview(query: PreviewQuery): Promise<PreviewResult> 
         return finish(
           {
             status: 400,
-            html: renderErrorPage(
-              "Archive entry preview requires an uploaded archive",
-            ),
+            html: renderErrorPage(t("preview.archiveEntryNeedUpload")),
           },
           { mode: "archive-entry" },
         );
@@ -343,9 +342,7 @@ export async function buildPreview(query: PreviewQuery): Promise<PreviewResult> 
         return finish(
           {
             status: 400,
-            html: renderErrorPage(
-              "Please upload the archive first to browse its contents",
-            ),
+            html: renderErrorPage(t("preview.archiveNeedUpload")),
           },
           localMeta,
         );

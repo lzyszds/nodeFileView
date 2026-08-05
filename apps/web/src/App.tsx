@@ -57,25 +57,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { LOCALES, localeLabel, useI18n, type Locale } from "@/i18n";
 import { cn } from "@/lib/utils";
 
 type TabId = "files" | "playground" | "settings" | "monitor";
 
-const NAV_TITLES: Record<TabId, string> = {
-  files: "文件存储与控制",
-  playground: "接口透传调试器",
-  settings: "全局系统设置",
-  monitor: "转码日志与审计",
-};
-
-const FORMAT_GROUPS = [
-  { title: "Word", desc: "docx 原生版式 + 目录；doc/wps/odt → PDF" },
-  { title: "Excel", desc: "xlsx/xls/csv 网格、多工作表、查找" },
-  { title: "PPT / PDF", desc: "pptx 幻灯片；pdf.js 翻页与高亮" },
-  { title: "其它", desc: "图片 / Markdown / 源码 / 压缩包 / 音视频" },
-];
-
 export default function App() {
+  const { t, locale, setLocale } = useI18n();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [authReady, setAuthReady] = useState(false);
   const [authEnabled, setAuthEnabled] = useState(false);
@@ -222,7 +210,7 @@ export default function App() {
       setAuthUser(res.user ?? loginUser.trim());
       setLoginPass("");
     } catch (err) {
-      setLoginError(err instanceof Error ? err.message : "登录失败");
+      setLoginError(err instanceof Error ? err.message : t("login.failed"));
     } finally {
       setLoginBusy(false);
     }
@@ -243,27 +231,57 @@ export default function App() {
   const navItems = useMemo(
     () =>
       [
-        { id: "files" as const, label: "文件存储与控制", icon: Folder, group: "控制中心" },
+        {
+          id: "files" as const,
+          label: t("nav.files"),
+          icon: Folder,
+          group: t("nav.controlCenter"),
+        },
         {
           id: "playground" as const,
-          label: "接口透传调试器",
+          label: t("nav.playground"),
           icon: Terminal,
-          group: "控制中心",
+          group: t("nav.controlCenter"),
         },
         {
           id: "settings" as const,
-          label: "全局系统设置",
+          label: t("nav.settings"),
           icon: Settings,
-          group: "系统管理",
+          group: t("nav.systemAdmin"),
         },
         {
           id: "monitor" as const,
-          label: "转码日志与审计",
+          label: t("nav.monitor"),
           icon: Activity,
-          group: "系统管理",
+          group: t("nav.systemAdmin"),
         },
       ] as const,
-    [],
+    [t],
+  );
+
+  const navGroups = useMemo(
+    () => [t("nav.controlCenter"), t("nav.systemAdmin")],
+    [t],
+  );
+
+  const formatGroups = useMemo(
+    () => [
+      { title: t("formats.word"), desc: t("formats.wordDesc") },
+      { title: t("formats.excel"), desc: t("formats.excelDesc") },
+      { title: t("formats.pptPdf"), desc: t("formats.pptPdfDesc") },
+      { title: t("formats.other"), desc: t("formats.otherDesc") },
+    ],
+    [t],
+  );
+
+  const navTitles: Record<TabId, string> = useMemo(
+    () => ({
+      files: t("nav.files"),
+      playground: t("nav.playground"),
+      settings: t("nav.settings"),
+      monitor: t("nav.monitor"),
+    }),
+    [t],
   );
 
   async function handleUpload(fileList: FileList | null) {
@@ -272,13 +290,13 @@ export default function App() {
     setMessage(null);
     try {
       const uploaded = await uploadFile(fileList[0]);
-      setMessage({ type: "ok", text: `已上传 ${uploaded.name}` });
+      setMessage({ type: "ok", text: t("files.uploaded", { name: uploaded.name }) });
       setPage(1);
       await refresh();
     } catch (err) {
       setMessage({
         type: "err",
-        text: err instanceof Error ? err.message : "上传失败",
+        text: err instanceof Error ? err.message : t("files.uploadFailed"),
       });
     } finally {
       setBusy(false);
@@ -286,16 +304,16 @@ export default function App() {
   }
 
   async function handleDelete(fileId: string) {
-    if (!confirm("确认删除该文件？")) return;
+    if (!confirm(t("files.confirmDelete"))) return;
     setBusy(true);
     try {
       await deleteFile(fileId);
       await refresh();
-      setMessage({ type: "ok", text: "已删除" });
+      setMessage({ type: "ok", text: t("files.deleted") });
     } catch (err) {
       setMessage({
         type: "err",
-        text: err instanceof Error ? err.message : "删除失败",
+        text: err instanceof Error ? err.message : t("files.deleteFailed"),
       });
     } finally {
       setBusy(false);
@@ -306,6 +324,7 @@ export default function App() {
     const encoded = await encodeUrl(sourceUrl, useAes);
     const qs = new URLSearchParams();
     qs.set("url", encoded);
+    qs.set("lang", locale);
     if (watermarkTxt.trim()) qs.set("watermarkTxt", watermarkTxt.trim());
     if (pageNo.trim()) qs.set("page", pageNo.trim());
     if (highlight.trim()) qs.set("highlight", highlight.trim());
@@ -319,21 +338,21 @@ export default function App() {
     setMessage(null);
     try {
       if (ftpHost.trim()) {
-        setMessage({ type: "err", text: "FTP 拉取一期未启用，仅保留参数位" });
+        setMessage({ type: "err", text: t("files.ftpDisabled") });
         return;
       }
       const source = remoteUrl.trim();
       if (!source) {
-        setMessage({ type: "err", text: "请填写远程文件 URL" });
+        setMessage({ type: "err", text: t("files.needUrl") });
         return;
       }
       const link = await buildPreviewLink(source);
       setGeneratedLink(link);
-      setMessage({ type: "ok", text: "预览链接已生成" });
+      setMessage({ type: "ok", text: t("files.linkReady") });
     } catch (err) {
       setMessage({
         type: "err",
-        text: err instanceof Error ? err.message : "生成失败",
+        text: err instanceof Error ? err.message : t("files.generateFailed"),
       });
     } finally {
       setBusy(false);
@@ -349,7 +368,7 @@ export default function App() {
     } catch (err) {
       setMessage({
         type: "err",
-        text: err instanceof Error ? err.message : "打开预览失败",
+        text: err instanceof Error ? err.message : t("files.openFailed"),
       });
     } finally {
       setBusy(false);
@@ -357,16 +376,16 @@ export default function App() {
   }
 
   async function purgeAllCache() {
-    if (!confirm("确认清理全部缓存与临时文件？")) return;
+    if (!confirm(t("files.confirmPurgeAll"))) return;
     setMonitorBusy(true);
     try {
       await clearMonitorCache("all");
       await refreshMonitor();
-      setMessage({ type: "ok", text: "已清理全部缓存" });
+      setMessage({ type: "ok", text: t("files.purgedAll") });
     } catch (err) {
       setMessage({
         type: "err",
-        text: err instanceof Error ? err.message : "清理失败",
+        text: err instanceof Error ? err.message : t("files.purgeFailed"),
       });
     } finally {
       setMonitorBusy(false);
@@ -376,7 +395,7 @@ export default function App() {
   if (!authReady) {
     return (
       <div className="flex h-screen items-center justify-center bg-slate-50 text-sm text-slate-500">
-        加载中…
+        {t("common.loading")}
       </div>
     );
   }
@@ -402,13 +421,14 @@ export default function App() {
             <h1 className="text-lg font-bold tracking-tight text-slate-900">
               nodeFileView
             </h1>
-            <p className="mt-1 text-xs text-slate-500">
-              控制台已上锁，请输入账号密码
-            </p>
+            <p className="mt-1 text-xs text-slate-500">{t("login.subtitle")}</p>
+          </div>
+          <div className="mb-4">
+            <LanguageSelect locale={locale} setLocale={setLocale} t={t} />
           </div>
           <div className="space-y-3">
             <div className="space-y-1.5">
-              <Label htmlFor="login-user">账号</Label>
+              <Label htmlFor="login-user">{t("login.user")}</Label>
               <Input
                 id="login-user"
                 autoComplete="username"
@@ -418,7 +438,7 @@ export default function App() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="login-pass">密码</Label>
+              <Label htmlFor="login-pass">{t("login.pass")}</Label>
               <Input
                 id="login-pass"
                 type="password"
@@ -434,13 +454,11 @@ export default function App() {
               </p>
             )}
             <Button type="submit" className="w-full" disabled={loginBusy}>
-              {loginBusy ? "验证中…" : "解锁进入"}
+              {loginBusy ? t("login.submitting") : t("login.submit")}
             </Button>
           </div>
-          <p className="mt-5 text-center text-[10px] leading-relaxed text-slate-400">
-            凭据来自环境变量 BASIC_AUTH_USER / BASIC_AUTH_PASS
-            <br />
-            （Docker 启动时可注入）
+          <p className="mt-5 whitespace-pre-line text-center text-[10px] leading-relaxed text-slate-400">
+            {t("login.hint")}
           </p>
         </form>
       </div>
@@ -449,7 +467,6 @@ export default function App() {
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-slate-50 text-slate-900">
-      {/* Sidebar */}
       <aside className="z-30 flex w-64 shrink-0 flex-col border-r border-slate-200/80 bg-white">
         <div className="flex h-14 items-center justify-between border-b border-slate-100 px-5">
           <div className="flex items-center gap-2.5">
@@ -471,7 +488,7 @@ export default function App() {
         </div>
 
         <nav className="flex-1 space-y-5 overflow-y-auto p-3">
-          {(["控制中心", "系统管理"] as const).map((group) => (
+          {navGroups.map((group) => (
             <div key={group} className="space-y-1">
               <p className="px-2 pb-1 text-[10px] font-semibold tracking-wide text-slate-400 uppercase">
                 {group}
@@ -512,11 +529,11 @@ export default function App() {
 
         <div className="space-y-2 border-t border-slate-100 p-4 text-[11px] text-slate-500">
           <div className="flex items-center justify-between">
-            <span>引擎状态</span>
-            <span className="font-medium text-emerald-600">Ready</span>
+            <span>{t("nav.engineStatus")}</span>
+            <span className="font-medium text-emerald-600">{t("common.ready")}</span>
           </div>
           <div className="flex items-center justify-between">
-            <span>缓存命中</span>
+            <span>{t("nav.cacheHit")}</span>
             <span className="font-mono">
               {monitorStats?.cacheHitRateText || configHintsReady(config)}
             </span>
@@ -528,23 +545,23 @@ export default function App() {
               className="mt-1 flex w-full items-center justify-center gap-1.5 rounded-lg border border-slate-200 px-2 py-1.5 text-slate-600 transition hover:bg-slate-50"
             >
               <LogOut className="size-3" />
-              退出 {authUser || "登录"}
+              {t("nav.logout", { user: authUser || t("nav.loginFallback") })}
             </button>
           )}
         </div>
       </aside>
 
-      {/* Main workspace */}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <header className="z-20 flex h-14 shrink-0 items-center justify-between border-b border-slate-200/80 bg-white px-6">
           <div className="flex items-center gap-2 text-xs">
-            <span className="text-slate-400">控制台</span>
+            <span className="text-slate-400">{t("nav.console")}</span>
             <span className="text-slate-300">/</span>
             <span className="font-semibold text-slate-800">
-              {NAV_TITLES[activeTab]}
+              {navTitles[activeTab]}
             </span>
           </div>
           <div className="flex items-center gap-2">
+            <LanguageSelect locale={locale} setLocale={setLocale} t={t} compact />
             <Button
               size="sm"
               variant="outline"
@@ -552,7 +569,7 @@ export default function App() {
               onClick={() => void purgeAllCache()}
             >
               <RefreshCw className="size-3.5" />
-              清理转换缓存
+              {t("nav.purgeCache")}
             </Button>
             <Button
               size="sm"
@@ -560,7 +577,7 @@ export default function App() {
               onClick={() => fileInputRef.current?.click()}
             >
               <Upload className="size-3.5" />
-              上传文件
+              {t("nav.upload")}
             </Button>
             <input
               ref={fileInputRef}
@@ -586,15 +603,15 @@ export default function App() {
               <Card className="flex min-h-0 flex-col overflow-hidden">
                 <CardHeader className="flex shrink-0 flex-row items-start justify-between gap-3 space-y-0">
                   <div>
-                    <CardTitle>文件管理</CardTitle>
-                    <CardDescription>上传、搜索、分页与预览</CardDescription>
+                    <CardTitle>{t("files.title")}</CardTitle>
+                    <CardDescription>{t("files.desc")}</CardDescription>
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="relative">
                       <Search className="text-muted-foreground absolute top-2.5 left-2.5 size-4" />
                       <Input
                         className="w-40 pl-8 md:w-48"
-                        placeholder="搜索文件名"
+                        placeholder={t("files.searchPlaceholder")}
                         value={q}
                         onChange={(e) => {
                           setPage(1);
@@ -632,14 +649,14 @@ export default function App() {
                     }}
                   >
                     <FileUp className="text-muted-foreground mx-auto mb-2 size-7" />
-                    <p className="text-sm font-medium">拖拽文件到此处，或选择上传</p>
+                    <p className="text-sm font-medium">{t("files.dropHint")}</p>
                     <div className="mt-3">
                       <Button
                         size="sm"
                         disabled={busy}
                         onClick={() => fileInputRef.current?.click()}
                       >
-                        选择文件
+                        {t("files.chooseFile")}
                       </Button>
                     </div>
                   </div>
@@ -648,11 +665,13 @@ export default function App() {
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>文件名</TableHead>
-                          <TableHead>类型</TableHead>
-                          <TableHead>大小</TableHead>
-                          <TableHead>时间</TableHead>
-                          <TableHead className="text-right">操作</TableHead>
+                          <TableHead>{t("files.colName")}</TableHead>
+                          <TableHead>{t("files.colType")}</TableHead>
+                          <TableHead>{t("files.colSize")}</TableHead>
+                          <TableHead>{t("files.colTime")}</TableHead>
+                          <TableHead className="text-right">
+                            {t("files.colActions")}
+                          </TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -662,7 +681,7 @@ export default function App() {
                               colSpan={5}
                               className="text-muted-foreground py-8 text-center"
                             >
-                              暂无文件
+                              {t("files.empty")}
                             </TableCell>
                           </TableRow>
                         ) : (
@@ -676,7 +695,7 @@ export default function App() {
                               </TableCell>
                               <TableCell>{formatSize(f.size)}</TableCell>
                               <TableCell className="text-muted-foreground text-xs">
-                                {new Date(f.createdAt).toLocaleString()}
+                                {new Date(f.createdAt).toLocaleString(locale)}
                               </TableCell>
                               <TableCell className="text-right">
                                 <div className="flex justify-end gap-2">
@@ -685,7 +704,7 @@ export default function App() {
                                     disabled={busy}
                                     onClick={() => void previewLocal(f)}
                                   >
-                                    预览
+                                    {t("files.preview")}
                                   </Button>
                                   <Button
                                     size="sm"
@@ -706,7 +725,11 @@ export default function App() {
 
                   <div className="flex shrink-0 items-center justify-between gap-3">
                     <p className="text-muted-foreground text-xs">
-                      共 {total} 个 · 第 {page}/{totalPages} 页
+                      {t("files.pageInfo", {
+                        total,
+                        page,
+                        pages: totalPages,
+                      })}
                     </p>
                     <div className="flex gap-2">
                       <Button
@@ -715,7 +738,7 @@ export default function App() {
                         disabled={page <= 1 || busy}
                         onClick={() => setPage((p) => Math.max(1, p - 1))}
                       >
-                        上一页
+                        {t("common.prev")}
                       </Button>
                       <Button
                         variant="outline"
@@ -723,7 +746,7 @@ export default function App() {
                         disabled={page >= totalPages || busy}
                         onClick={() => setPage((p) => p + 1)}
                       >
-                        下一页
+                        {t("common.next")}
                       </Button>
                     </div>
                   </div>
@@ -733,8 +756,8 @@ export default function App() {
               <div className="min-h-0 space-y-5 overflow-y-auto">
                 <Card>
                   <CardHeader>
-                    <CardTitle>接入参数</CardTitle>
-                    <CardDescription>生成 `/onlinePreview` 链接</CardDescription>
+                    <CardTitle>{t("files.paramsTitle")}</CardTitle>
+                    <CardDescription>{t("files.paramsDesc")}</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-3">
                     <ParamFields
@@ -757,7 +780,7 @@ export default function App() {
                     />
                     <div className="flex flex-wrap gap-2">
                       <Button disabled={busy} onClick={() => void onGenerate()}>
-                        生成预览链接
+                        {t("files.generate")}
                       </Button>
                       <Button
                         variant="outline"
@@ -766,7 +789,7 @@ export default function App() {
                           window.open(generatedLink, "_blank", "noopener,noreferrer")
                         }
                       >
-                        打开预览
+                        {t("files.openPreview")}
                       </Button>
                     </div>
                     {generatedLink && (
@@ -779,10 +802,10 @@ export default function App() {
 
                 <Card>
                   <CardHeader>
-                    <CardTitle>一期支持范围</CardTitle>
+                    <CardTitle>{t("files.formatsTitle")}</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3">
-                    {FORMAT_GROUPS.map((g, i) => (
+                    {formatGroups.map((g, i) => (
                       <div key={g.title}>
                         {i > 0 && <Separator className="mb-3" />}
                         <p className="text-sm font-medium">{g.title}</p>
@@ -799,10 +822,8 @@ export default function App() {
             <div className="mx-auto max-w-3xl space-y-5">
               <Card>
                 <CardHeader>
-                  <CardTitle>接入参数调试器</CardTitle>
-                  <CardDescription>
-                    生成并打开 `/onlinePreview?...`，调试宿主 WebView 工具方法透传
-                  </CardDescription>
+                  <CardTitle>{t("playground.title")}</CardTitle>
+                  <CardDescription>{t("playground.desc")}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <ParamFields
@@ -825,7 +846,7 @@ export default function App() {
                   />
                   <div className="flex flex-wrap gap-2">
                     <Button disabled={busy} onClick={() => void onGenerate()}>
-                      生成预览链接
+                      {t("files.generate")}
                     </Button>
                     <Button
                       variant="outline"
@@ -834,7 +855,7 @@ export default function App() {
                         window.open(generatedLink, "_blank", "noopener,noreferrer")
                       }
                     >
-                      打开预览
+                      {t("files.openPreview")}
                     </Button>
                   </div>
                   {generatedLink && (
@@ -847,7 +868,7 @@ export default function App() {
 
               <Card>
                 <CardHeader>
-                  <CardTitle>渲染参数示意</CardTitle>
+                  <CardTitle>{t("playground.renderTitle")}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="rounded-xl border bg-muted/30 p-3 font-mono text-xs break-all space-y-1">
@@ -859,6 +880,7 @@ export default function App() {
                       Cache Policy:{" "}
                       {forceUpdatedCache ? "BYPASS_CACHE" : "CACHE_HIT_ALLOWED"}
                     </div>
+                    <div>Lang: {locale}</div>
                   </div>
                 </CardContent>
               </Card>
@@ -869,19 +891,19 @@ export default function App() {
             <div className="mx-auto max-w-5xl space-y-5">
               <Card>
                 <CardHeader>
-                  <CardTitle>全局配置中心</CardTitle>
-                  <CardDescription>
-                    配置来自服务端 `.env`（只读）；缓存清理为可执行操作
-                  </CardDescription>
+                  <CardTitle>{t("settings.title")}</CardTitle>
+                  <CardDescription>{t("settings.desc")}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {!config ? (
-                    <p className="text-muted-foreground text-xs">正在加载配置…</p>
+                    <p className="text-muted-foreground text-xs">
+                      {t("settings.loading")}
+                    </p>
                   ) : (
                     <div className="grid gap-3 md:grid-cols-2">
                       <div className="space-y-2 rounded-xl border bg-muted/30 p-4 text-xs">
                         <div>
-                          监听地址：{" "}
+                          {t("settings.listen")}：{" "}
                           <span className="font-mono">
                             {config.host}:{config.port}
                           </span>
@@ -889,7 +911,7 @@ export default function App() {
                         <div>
                           BASE_URL：{" "}
                           <span className="font-mono break-all">
-                            {config.baseUrl || "（未设置）"}
+                            {config.baseUrl || t("common.unset")}
                           </span>
                         </div>
                         <div>
@@ -897,11 +919,11 @@ export default function App() {
                           <span className="font-mono break-all">
                             {config.trustHost?.length
                               ? config.trustHost.join(", ")
-                              : "（未限制，仍受 NOT_TRUST_HOST）"}
+                              : t("settings.trustHostUnlimited")}
                           </span>
                         </div>
                         <div>
-                          最大上传：{" "}
+                          {t("settings.maxUpload")}：{" "}
                           <span className="font-mono">{config.maxUploadSizeMb}MB</span>
                         </div>
                         <div>
@@ -911,7 +933,7 @@ export default function App() {
                           </span>
                         </div>
                         <div>
-                          转码超时：{" "}
+                          {t("settings.convertTimeout")}：{" "}
                           <span className="font-mono">
                             {config.convertTimeoutMs || 120000}ms
                           </span>
@@ -921,79 +943,103 @@ export default function App() {
                         <div>
                           AES：{" "}
                           <span className="font-mono">
-                            {config.aesEnabled ? "Enabled" : "Disabled"}
+                            {config.aesEnabled
+                              ? t("common.enabled")
+                              : t("common.disabled")}
                           </span>
                         </div>
                         <div>
                           Basic Auth：{" "}
                           <span className="font-mono">
-                            {config.basicAuthEnabled ? "Enabled" : "Disabled"}
+                            {config.basicAuthEnabled
+                              ? t("common.enabled")
+                              : t("common.disabled")}
                           </span>
                         </div>
                         <div>
-                          预览密码：{" "}
+                          {t("settings.previewPassword")}：{" "}
                           <span className="font-mono">
-                            {config.previewPasswordEnabled ? "Enabled" : "Disabled"}
+                            {config.previewPasswordEnabled
+                              ? t("common.enabled")
+                              : t("common.disabled")}
                           </span>
                         </div>
                         <div>
-                          允许嵌入：{" "}
+                          {t("settings.allowEmbed")}：{" "}
                           <span className="font-mono">
-                            {config.allowEmbed ? "Enabled" : "Disabled"}
+                            {config.allowEmbed
+                              ? t("common.enabled")
+                              : t("common.disabled")}
                           </span>
                         </div>
                         <div>
-                          拦截私网 IP：{" "}
+                          {t("settings.blockPrivate")}：{" "}
                           <span className="font-mono">
-                            {config.blockPrivateIp ? "Enabled" : "Disabled"}
+                            {config.blockPrivateIp
+                              ? t("common.enabled")
+                              : t("common.disabled")}
                           </span>
                         </div>
                         <div>
-                          限流：{" "}
+                          {t("settings.rateLimit")}：{" "}
                           <span className="font-mono">
                             {config.rateLimitMax}/{config.rateLimitWindowMs}ms
                           </span>
                         </div>
                         <div>
-                          FTP：{" "}
+                          {t("settings.ftp")}：{" "}
                           <span className="font-mono">
-                            {config.ftpEnabled ? "Enabled" : "Disabled（未实现）"}
+                            {config.ftpEnabled
+                              ? t("common.enabled")
+                              : t("settings.ftpDisabled")}
                           </span>
                         </div>
                       </div>
                     </div>
                   )}
 
-                  <Separator />
-
-                  <div className="space-y-3">
-                    <p className="text-sm font-medium">缓存管理</p>
+                  <div className="space-y-3 rounded-xl border p-4">
+                    <p className="text-sm font-medium">{t("settings.cacheTitle")}</p>
                     {monitorStats ? (
-                      <div className="grid gap-3 text-xs md:grid-cols-3">
-                        <div className="rounded-lg border p-3">
-                          <div className="text-muted-foreground">转码缓存</div>
+                      <div className="grid gap-2 text-xs md:grid-cols-3">
+                        <div className="rounded-lg bg-muted/40 p-3">
+                          <div className="text-muted-foreground">
+                            {t("settings.cacheConvert")}
+                          </div>
                           <div className="mt-1 font-mono">
-                            {monitorStats.cache.convert.count} 个 ·{" "}
-                            {formatSize(monitorStats.cache.convert.bytes)}
+                            {t("settings.countSize", {
+                              count: monitorStats.cache.convert.count,
+                              size: formatSize(monitorStats.cache.convert.bytes),
+                            })}
                           </div>
                         </div>
-                        <div className="rounded-lg border p-3">
-                          <div className="text-muted-foreground">远程文件缓存</div>
+                        <div className="rounded-lg bg-muted/40 p-3">
+                          <div className="text-muted-foreground">
+                            {t("settings.cacheRemote")}
+                          </div>
                           <div className="mt-1 font-mono">
-                            {monitorStats.cache.remote.count} 个 ·{" "}
-                            {formatSize(monitorStats.cache.remote.bytes)}
+                            {t("settings.countSize", {
+                              count: monitorStats.cache.remote.count,
+                              size: formatSize(monitorStats.cache.remote.bytes),
+                            })}
                           </div>
                         </div>
-                        <div className="rounded-lg border p-3">
-                          <div className="text-muted-foreground">临时文件</div>
+                        <div className="rounded-lg bg-muted/40 p-3">
+                          <div className="text-muted-foreground">
+                            {t("settings.cacheTemp")}
+                          </div>
                           <div className="mt-1 font-mono">
-                            {monitorStats.cache.temp.count} 个 ·{" "}
-                            {formatSize(monitorStats.cache.temp.bytes)}
+                            {t("settings.countSize", {
+                              count: monitorStats.cache.temp.count,
+                              size: formatSize(monitorStats.cache.temp.bytes),
+                            })}
                           </div>
                         </div>
                       </div>
                     ) : (
-                      <p className="text-muted-foreground text-xs">正在读取缓存占用…</p>
+                      <p className="text-muted-foreground text-xs">
+                        {t("settings.cacheLoading")}
+                      </p>
                     )}
                     <div className="flex flex-wrap gap-2">
                       <Button
@@ -1005,19 +1051,24 @@ export default function App() {
                           try {
                             await clearMonitorCache("convert");
                             await refreshMonitor();
-                            setMessage({ type: "ok", text: "已清理转码缓存" });
+                            setMessage({
+                              type: "ok",
+                              text: t("settings.clearedConvert"),
+                            });
                           } catch (err) {
                             setMessage({
                               type: "err",
-                              text: err instanceof Error ? err.message : "清理失败",
+                              text:
+                                err instanceof Error
+                                  ? err.message
+                                  : t("files.purgeFailed"),
                             });
                           } finally {
                             setMonitorBusy(false);
                           }
                         }}
                       >
-                        <Trash2 className="size-3.5" />
-                        清理转码缓存
+                        {t("settings.clearConvert")}
                       </Button>
                       <Button
                         size="sm"
@@ -1028,19 +1079,24 @@ export default function App() {
                           try {
                             await clearMonitorCache("remote");
                             await refreshMonitor();
-                            setMessage({ type: "ok", text: "已清理远程缓存" });
+                            setMessage({
+                              type: "ok",
+                              text: t("settings.clearedRemote"),
+                            });
                           } catch (err) {
                             setMessage({
                               type: "err",
-                              text: err instanceof Error ? err.message : "清理失败",
+                              text:
+                                err instanceof Error
+                                  ? err.message
+                                  : t("files.purgeFailed"),
                             });
                           } finally {
                             setMonitorBusy(false);
                           }
                         }}
                       >
-                        <Trash2 className="size-3.5" />
-                        清理远程缓存
+                        {t("settings.clearRemote")}
                       </Button>
                       <Button
                         size="sm"
@@ -1048,32 +1104,32 @@ export default function App() {
                         disabled={monitorBusy}
                         onClick={() => void purgeAllCache()}
                       >
-                        <Trash2 className="size-3.5" />
-                        清理全部
+                        {t("settings.clearAll")}
                       </Button>
                       <Button
                         size="sm"
-                        variant="secondary"
-                        disabled={monitorBusy}
+                        variant="outline"
+                        disabled={busy}
                         onClick={async () => {
-                          setMonitorBusy(true);
                           try {
                             const c = await fetchPublicConfig();
                             setConfig(c);
-                            await refreshMonitor();
-                            setMessage({ type: "ok", text: "配置已刷新" });
+                            setMessage({
+                              type: "ok",
+                              text: t("settings.configRefreshed"),
+                            });
                           } catch (err) {
                             setMessage({
                               type: "err",
-                              text: err instanceof Error ? err.message : "刷新失败",
+                              text:
+                                err instanceof Error
+                                  ? err.message
+                                  : t("settings.refreshFailed"),
                             });
-                          } finally {
-                            setMonitorBusy(false);
                           }
                         }}
                       >
-                        <RefreshCw className="size-3.5" />
-                        刷新配置
+                        {t("settings.refreshConfig")}
                       </Button>
                     </div>
                   </div>
@@ -1086,28 +1142,37 @@ export default function App() {
             <div className="mx-auto max-w-5xl space-y-4">
               <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
                 <StatCard
-                  label="今日预览"
+                  label={t("monitor.previewToday")}
                   value={String(monitorStats?.previewToday ?? "—")}
-                  hint={`累计 ${monitorStats?.previewTotal ?? 0} · ${monitorStats?.uptimeText || "—"}`}
+                  hint={t("monitor.previewHint", {
+                    total: monitorStats?.previewTotal ?? 0,
+                    uptime: monitorStats?.uptimeText || "—",
+                  })}
                 />
                 <StatCard
-                  label="缓存命中率"
+                  label={t("monitor.hitRate")}
                   value={monitorStats?.cacheHitRateText || "—"}
                   hint={`hit ${monitorStats?.cacheHits ?? 0} / miss ${monitorStats?.cacheMisses ?? 0}`}
                   valueClass="text-emerald-600"
                 />
                 <StatCard
-                  label="平均转码耗时"
+                  label={t("monitor.avgConvert")}
                   value={monitorStats ? `${monitorStats.avgConvertMs} ms` : "—"}
-                  hint={`转码 ${monitorStats?.convertTotal ?? 0} 次`}
+                  hint={t("monitor.convertHint", {
+                    count: monitorStats?.convertTotal ?? 0,
+                  })}
                   valueClass="text-indigo-600"
                 />
                 <StatCard
-                  label="转换异常"
-                  value={`${monitorStats?.convertErrors ?? "—"} 次`}
+                  label={t("monitor.convertErrors")}
+                  value={t("monitor.errorsUnit", {
+                    count: monitorStats?.convertErrors ?? "—",
+                  })}
                   hint={
                     monitorStats
-                      ? `缓存占用 ${formatSize(monitorStats.cache.totalBytes)}`
+                      ? t("monitor.cacheBytes", {
+                          size: formatSize(monitorStats.cache.totalBytes),
+                        })
                       : "—"
                   }
                   valueClass="text-rose-600"
@@ -1117,8 +1182,10 @@ export default function App() {
               <Card className="overflow-hidden">
                 <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0 border-b py-3">
                   <div>
-                    <CardTitle className="text-sm">实时预览转码与缓存日志</CardTitle>
-                    <CardDescription>{monitorLogs.length} 条</CardDescription>
+                    <CardTitle className="text-sm">{t("monitor.logsTitle")}</CardTitle>
+                    <CardDescription>
+                      {t("monitor.logsCount", { count: monitorLogs.length })}
+                    </CardDescription>
                   </div>
                   <div className="flex gap-2">
                     <Button
@@ -1132,23 +1199,26 @@ export default function App() {
                       }}
                     >
                       <RefreshCw className="size-3.5" />
-                      刷新
+                      {t("common.refresh")}
                     </Button>
                     <Button
                       size="sm"
                       variant="outline"
                       disabled={monitorBusy}
                       onClick={async () => {
-                        if (!confirm("清空监控日志？")) return;
+                        if (!confirm(t("monitor.confirmClear"))) return;
                         setMonitorBusy(true);
                         try {
                           await clearMonitorLogsApi();
                           await refreshMonitor();
-                          setMessage({ type: "ok", text: "日志已清空" });
+                          setMessage({ type: "ok", text: t("monitor.cleared") });
                         } catch (err) {
                           setMessage({
                             type: "err",
-                            text: err instanceof Error ? err.message : "清空失败",
+                            text:
+                              err instanceof Error
+                                ? err.message
+                                : t("monitor.clearFailed"),
                           });
                         } finally {
                           setMonitorBusy(false);
@@ -1156,26 +1226,36 @@ export default function App() {
                       }}
                     >
                       <Trash2 className="size-3.5" />
-                      清空
+                      {t("monitor.clear")}
                     </Button>
                   </div>
                 </CardHeader>
                 <CardContent className="p-0">
                   {monitorLogs.length === 0 ? (
                     <div className="text-muted-foreground p-8 text-center text-xs">
-                      暂无日志。预览任意文件后会出现真实流水。
+                      {t("monitor.empty")}
                     </div>
                   ) : (
                     <div className="max-h-[min(52vh,480px)] overflow-auto">
                       <Table>
                         <TableHeader>
                           <TableRow>
-                            <TableHead className="w-[160px]">时间</TableHead>
-                            <TableHead className="w-[100px]">类型</TableHead>
-                            <TableHead>消息</TableHead>
-                            <TableHead className="w-[80px]">耗时</TableHead>
-                            <TableHead className="w-[70px]">缓存</TableHead>
-                            <TableHead className="w-[70px]">级别</TableHead>
+                            <TableHead className="w-[160px]">
+                              {t("monitor.colTime")}
+                            </TableHead>
+                            <TableHead className="w-[100px]">
+                              {t("monitor.colKind")}
+                            </TableHead>
+                            <TableHead>{t("monitor.colMsg")}</TableHead>
+                            <TableHead className="w-[80px]">
+                              {t("monitor.colDuration")}
+                            </TableHead>
+                            <TableHead className="w-[70px]">
+                              {t("monitor.colCache")}
+                            </TableHead>
+                            <TableHead className="w-[70px]">
+                              {t("monitor.colLevel")}
+                            </TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -1254,7 +1334,7 @@ export default function App() {
             )}
             <div className="min-w-0 flex-1">
               <p className="text-xs font-semibold">
-                {message.type === "ok" ? "成功" : "出错"}
+                {message.type === "ok" ? t("common.success") : t("common.error")}
               </p>
               <p className="mt-0.5 text-xs leading-relaxed text-slate-600">
                 {message.text}
@@ -1263,7 +1343,7 @@ export default function App() {
             <button
               type="button"
               className="rounded-md p-0.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
-              aria-label="关闭"
+              aria-label={t("common.close")}
               onClick={() => {
                 setToastVisible(false);
                 setMessage(null);
@@ -1275,6 +1355,39 @@ export default function App() {
         </div>
       )}
     </div>
+  );
+}
+
+function LanguageSelect(props: {
+  locale: Locale;
+  setLocale: (locale: Locale) => void;
+  t: (key: string, vars?: Record<string, string | number>) => string;
+  compact?: boolean;
+}) {
+  return (
+    <label
+      className={cn(
+        "flex items-center gap-2 text-xs text-slate-500",
+        props.compact ? "" : "w-full",
+      )}
+    >
+      {!props.compact && <span className="shrink-0">{props.t("common.language")}</span>}
+      <select
+        className={cn(
+          "rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700 outline-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100",
+          props.compact ? "max-w-[140px]" : "w-full",
+        )}
+        value={props.locale}
+        aria-label={props.t("common.language")}
+        onChange={(e) => props.setLocale(e.target.value as Locale)}
+      >
+        {LOCALES.map((code) => (
+          <option key={code} value={code}>
+            {localeLabel(code)}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
 
@@ -1323,10 +1436,11 @@ function ParamFields(props: {
   forceUpdatedCache: boolean;
   setForceUpdatedCache: (v: boolean) => void;
 }) {
+  const { t } = useI18n();
   return (
     <>
       <div className="space-y-2">
-        <Label htmlFor="remoteUrl">远程文件 URL</Label>
+        <Label htmlFor="remoteUrl">{t("params.remoteUrl")}</Label>
         <Input
           id="remoteUrl"
           value={props.remoteUrl}
@@ -1335,7 +1449,7 @@ function ParamFields(props: {
         />
       </div>
       <div className="space-y-2">
-        <Label htmlFor="watermark">水印 watermarkTxt</Label>
+        <Label htmlFor="watermark">{t("params.watermark")}</Label>
         <Input
           id="watermark"
           value={props.watermarkTxt}
@@ -1344,7 +1458,7 @@ function ParamFields(props: {
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-2">
-          <Label htmlFor="page">页码 page</Label>
+          <Label htmlFor="page">{t("params.page")}</Label>
           <Input
             id="page"
             value={props.pageNo}
@@ -1352,7 +1466,7 @@ function ParamFields(props: {
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="highlight">高亮 highlight</Label>
+          <Label htmlFor="highlight">{t("params.highlight")}</Label>
           <Input
             id="highlight"
             value={props.highlight}
@@ -1361,22 +1475,22 @@ function ParamFields(props: {
         </div>
       </div>
       <div className="space-y-2">
-        <Label htmlFor="password">预览密码 password</Label>
+        <Label htmlFor="password">{t("params.password")}</Label>
         <Input
           id="password"
           type="password"
           value={props.password}
           onChange={(e) => props.setPassword(e.target.value)}
-          placeholder="服务端 PREVIEW_PASSWORD"
+          placeholder={t("params.passwordPh")}
         />
       </div>
       <div className="space-y-2">
-        <Label htmlFor="ftp">FTP Host（一期未启用）</Label>
+        <Label htmlFor="ftp">{t("params.ftp")}</Label>
         <Input
           id="ftp"
           value={props.ftpHost}
           onChange={(e) => props.setFtpHost(e.target.value)}
-          placeholder="保留参数位"
+          placeholder={t("params.ftpPh")}
         />
       </div>
       <div className="space-y-3">
@@ -1385,14 +1499,14 @@ function ParamFields(props: {
             checked={props.useAes}
             onCheckedChange={(v) => props.setUseAes(v === true)}
           />
-          AES 加密 url 参数
+          {t("params.aes")}
         </label>
         <label className="flex items-center gap-2 text-sm">
           <Checkbox
             checked={props.forceUpdatedCache}
             onCheckedChange={(v) => props.setForceUpdatedCache(v === true)}
           />
-          forceUpdatedCache 刷新转换缓存
+          {t("params.forceCache")}
         </label>
       </div>
     </>

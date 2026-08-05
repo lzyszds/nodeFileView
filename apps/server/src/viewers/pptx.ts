@@ -1,3 +1,4 @@
+import { previewUi } from "../i18n/index.js";
 import { escapeHtml, layout, watermarkLayer } from "./layout.js";
 
 export function renderPptxViewer(opts: {
@@ -5,19 +6,20 @@ export function renderPptxViewer(opts: {
   fileUrl: string;
   watermark?: string;
 }): string {
+  const ui = previewUi();
   return layout({
     title: opts.title,
     ext: "pptx",
     engine: "pptx-preview",
     headerActions: `
-      <button type="button" id="prevBtn">上一页</button>
-      <button type="button" id="nextBtn">下一页</button>
-      <button type="button" class="primary" id="fsBtn">全屏</button>
+      <button type="button" id="prevBtn">${escapeHtml(ui.prevPage)}</button>
+      <button type="button" id="nextBtn">${escapeHtml(ui.nextPage)}</button>
+      <button type="button" class="primary" id="fsBtn">${escapeHtml(ui.fullscreen)}</button>
     `,
     floatingBar: `
-      <button type="button" id="prevFab" title="上一页">‹</button>
+      <button type="button" id="prevFab" title="${escapeHtml(ui.prevPage)}">‹</button>
       <span class="mono" id="pageLabel">- / -</span>
-      <button type="button" id="nextFab" title="下一页">›</button>
+      <button type="button" id="nextFab" title="${escapeHtml(ui.nextPage)}">›</button>
     `,
     head: `
       <style>
@@ -172,6 +174,7 @@ export function renderPptxViewer(opts: {
       </div>
       <div id="thumb-paint" aria-hidden="true"></div>
       <script type="module">
+        const UI = ${JSON.stringify(ui)};
         const fileUrl = ${JSON.stringify(opts.fileUrl)};
         const status = document.getElementById("status");
         const host = document.getElementById("pptx-host");
@@ -184,9 +187,9 @@ export function renderPptxViewer(opts: {
         let slideWidth = 960;
         let slideHeight = 540;
         [
-          ["prevBtn", "上一页"],
-          ["nextBtn", "下一页"],
-          ["fsBtn", "全屏"],
+          ["prevBtn", UI.prevPage],
+          ["nextBtn", UI.nextPage],
+          ["fsBtn", UI.fullscreen],
         ].forEach(function (item) {
           window.__NFV_PREVIEW__?.registerButtonAction(item[0], { label: item[1] });
         });
@@ -352,7 +355,7 @@ export function renderPptxViewer(opts: {
           await buildThumbs();
         } catch (err) {
           status.hidden = false;
-          status.textContent = "PPTX 预览失败：" + (err && err.message ? err.message : String(err));
+          status.textContent = UI.pptxFailed.replace("{error}", err && err.message ? err.message : String(err));
           host.hidden = true;
         }
 

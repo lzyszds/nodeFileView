@@ -1,3 +1,5 @@
+import { htmlLang } from "../i18n/index.js";
+
 function escapeHtml(s: string): string {
   return s
     .replace(/&/g, "&amp;")
@@ -23,13 +25,16 @@ export function layout(opts: {
   footerLeft?: string;
   /** full=通用预览壳；content=仅主题样式，供 Word/Excel 等自带 chrome 使用 */
   chrome?: "full" | "content";
+  /** html lang，默认由 i18n 提供 */
+  lang?: string;
 }): string {
   const engine = opts.engine || "nodeFileView";
   const chrome = opts.chrome || "full";
   const isFull = chrome === "full";
+  const lang = opts.lang || htmlLang();
 
   return `<!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="${escapeHtml(lang)}">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />

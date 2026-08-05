@@ -11,6 +11,7 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      "@locales": path.resolve(__dirname, "../../locales"),
     },
   },
   server: {

@@ -1,4 +1,5 @@
 import type { ArchiveEntry } from "../services/archives/zipService.js";
+import { currentLocale, previewUi, t } from "../i18n/index.js";
 import { escapeHtml, layout, watermarkLayer } from "./layout.js";
 
 function formatSize(n: number): string {
@@ -25,10 +26,10 @@ type TreeNode = {
 };
 
 /** 仅按 `/` 分段建树；文件名里的逗号、空格、`@` 等一律当作文件名字符 */
-function buildTree(entries: ArchiveEntry[]): TreeNode {
+function buildTree(entries: ArchiveEntry[], rootName: string): TreeNode {
   const root: TreeNode = {
     id: "",
-    name: "根目录",
+    name: rootName,
     isDir: true,
     size: 0,
     path: "",
@@ -106,18 +107,22 @@ export function renderArchiveViewer(opts: {
   const encoded = Buffer.from(`file://local/${opts.fileId}`, "utf8").toString(
     "base64",
   );
-  const tree = buildTree(opts.entries);
+  const tree = buildTree(opts.entries, t("preview.archiveRoot"));
   const files = opts.entries.filter((e) => !e.isDirectory);
   const dirs = opts.entries.filter((e) => e.isDirectory);
   const totalSize = files.reduce((sum, e) => sum + (e.size || 0), 0);
   const treeJson = JSON.stringify(tree);
-  const previewBase = `/onlinePreview?url=${encodeURIComponent(encoded)}&archiveEntry=`;
+  const previewBase = `/onlinePreview?url=${encodeURIComponent(encoded)}&lang=${encodeURIComponent(currentLocale())}&archiveEntry=`;
+  const ui = previewUi();
 
   return layout({
     title: opts.title,
     ext: "zip",
     engine: "Archive Browser",
-    footerLeft: `${files.length} 个文件 · ${formatSize(totalSize)}`,
+    footerLeft: t("preview.archiveFiles", {
+      count: files.length,
+      size: formatSize(totalSize),
+    }),
     head: `
       <style>
         .viewer { height: 100%; min-height: 0; }
@@ -385,7 +390,7 @@ export function renderArchiveViewer(opts: {
       <div class="viewer">
         <div class="arc" id="arc-app">
           <aside class="arc-side">
-            <div class="arc-side-hd">目录树</div>
+            <div class="arc-side-hd">${escapeHtml(ui.archiveTree)}</div>
             <div class="arc-tree" id="arc-tree"></div>
           </aside>
           <section class="arc-main">
@@ -396,7 +401,7 @@ export function renderArchiveViewer(opts: {
                 <div class="pv-bar">
                   <button type="button" class="pv-back" id="pv-back">
                     <span aria-hidden="true"></span>
-                    返回列表
+                    ${escapeHtml(ui.archiveBack)}
                   </button>
                   <div class="pv-title" id="pv-title"></div>
                 </div>
@@ -411,6 +416,7 @@ export function renderArchiveViewer(opts: {
           const TREE = ${treeJson};
           const PREVIEW_BASE = ${JSON.stringify(previewBase)};
           const ENTRY_BASE = ${JSON.stringify(`/api/archive/${opts.fileId}/entry?path=`)};
+          const UI = ${JSON.stringify(ui)};
 
           function formatSize(n) {
             if (n < 1024) return n + " B";
@@ -550,7 +556,7 @@ export function renderArchiveViewer(opts: {
               img.alt = file.name;
               img.loading = "lazy";
               img.onerror = function () {
-                pvBody.innerHTML = '<div class="pv-fallback">图片加载失败</div>';
+                pvBody.innerHTML = '<div class="pv-fallback">' + UI.archiveImageFail + '</div>';
               };
               pvBody.appendChild(img);
             } else if (kind.mode === "video") {
@@ -636,7 +642,7 @@ export function renderArchiveViewer(opts: {
             crumbEl.innerHTML = "";
             const rootBtn = document.createElement("button");
             rootBtn.type = "button";
-            rootBtn.textContent = "根目录";
+            rootBtn.textContent = UI.archiveRoot;
             rootBtn.addEventListener("click", function () {
               closePreview();
               currentId = "";
@@ -666,7 +672,7 @@ export function renderArchiveViewer(opts: {
             const node = findNode(currentId, TREE) || TREE;
             listEl.innerHTML = "";
             if (!node.children.length) {
-              listEl.innerHTML = '<div class="empty">此目录为空</div>';
+              listEl.innerHTML = '<div class="empty">' + UI.archiveEmpty + '</div>';
               return;
             }
             for (const child of node.children) {
@@ -681,7 +687,7 @@ export function renderArchiveViewer(opts: {
                 nm.textContent = child.name;
                 const meta = document.createElement("span");
                 meta.className = "meta";
-                meta.textContent = "文件夹";
+                meta.textContent = UI.archiveFolder;
                 row.appendChild(nm);
                 row.appendChild(meta);
                 row.addEventListener("click", function () {
@@ -735,7 +741,7 @@ export function renderArchiveViewer(opts: {
 
 export function renderErrorPage(message: string, status = 400): string {
   return layout({
-    title: "预览失败",
+    title: t("preview.failedTitle"),
     ext: "err",
     engine: "Error",
     body: `
@@ -757,8 +763,8 @@ export function renderUnsupported(opts: {
     engine: "Unsupported",
     body: `
       <div class="empty">
-        <p>格式 .${escapeHtml(opts.ext)} 暂未在一期支持，或需要额外依赖。</p>
-        <p style="font-size:13px;color:var(--muted)">DOCX / Excel / PPTX / PDF / 图片 / Markdown / 文本 / 压缩包 / 音视频已优化。</p>
+        <p>${escapeHtml(t("preview.unsupported", { ext: opts.ext }))}</p>
+        <p style="font-size:13px;color:var(--muted)">${escapeHtml(t("preview.unsupportedHint"))}</p>
       </div>
     `,
   });

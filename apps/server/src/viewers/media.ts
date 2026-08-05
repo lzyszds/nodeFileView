@@ -1,3 +1,4 @@
+import { previewUi } from "../i18n/index.js";
 import { escapeHtml, layout, watermarkLayer } from "./layout.js";
 
 export function renderMediaViewer(opts: {
@@ -6,6 +7,7 @@ export function renderMediaViewer(opts: {
   audio: boolean;
   watermark?: string;
 }): string {
+  const ui = previewUi();
   const ext = opts.title.includes(".")
     ? opts.title.split(".").pop() || (opts.audio ? "mp3" : "mp4")
     : opts.audio
@@ -17,9 +19,9 @@ export function renderMediaViewer(opts: {
     ext,
     engine: "Plyr 3",
     headerActions: `
-      <button type="button" id="pipBtn" ${opts.audio ? "hidden" : ""}>画中画</button>
-      <button type="button" id="fsBtn">全屏</button>
-      <button type="button" class="primary" id="dlBtn">下载</button>
+      <button type="button" id="pipBtn" ${opts.audio ? "hidden" : ""}>PiP</button>
+      <button type="button" id="fsBtn">${escapeHtml(ui.fullscreen)}</button>
+      <button type="button" class="primary" id="dlBtn">${escapeHtml(ui.download)}</button>
     `,
     floatingBar: `
       <span class="mono" id="infoLabel">${opts.audio ? "Audio" : "Video"}</span>
@@ -102,7 +104,7 @@ export function renderMediaViewer(opts: {
               }
             </div>
             <div class="meta-row">
-              <span id="detail">${opts.audio ? "音频预览" : "视频预览"} · Plyr</span>
+              <span id="detail">${escapeHtml(opts.audio ? ui.mediaAudio : ui.mediaVideo)}</span>
               <span id="duration"></span>
             </div>
           </div>

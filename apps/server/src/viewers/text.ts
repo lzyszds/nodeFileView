@@ -1,4 +1,5 @@
 import { codeToTokens } from "shiki";
+import { previewUi } from "../i18n/index.js";
 import { escapeHtml, layout, watermarkLayer } from "./layout.js";
 
 const LANG_ALIASES: Record<string, string> = {
@@ -123,15 +124,16 @@ export async function renderTextViewer(opts: {
     ? opts.title.split(".").pop() || "txt"
     : "txt";
 
+  const ui = previewUi();
   return layout({
     title: opts.title,
     ext,
     engine: "Shiki · github-light",
     headerActions: `
       <span class="uv-meta" id="langLabel">${escapeHtml(lang)} · UTF-8 · ${lines} lines</span>
-      <button type="button" id="zoomOut" title="缩小">−</button>
+      <button type="button" id="zoomOut" title="${escapeHtml(ui.zoomOut)}">−</button>
       <span class="uv-meta" id="zoomLabel" style="min-width:3em;text-align:center">100%</span>
-      <button type="button" id="zoomIn" title="放大">+</button>
+      <button type="button" id="zoomIn" title="${escapeHtml(ui.zoomIn)}">+</button>
       <button type="button" id="copyBtn">复制全部</button>
       <button type="button" id="wrapBtn">取消换行</button>
     `,
@@ -235,14 +237,15 @@ export async function renderTextViewer(opts: {
         </div>
       </div>
       <script>
+        const UI = ${JSON.stringify(ui)};
         const raw = ${JSON.stringify(opts.content)};
         let zoom = 1;
         let wrap = true;
         const body = document.getElementById("codeBody");
         const zoomLabel = document.getElementById("zoomLabel");
         [
-          ["zoomOut", "缩小"],
-          ["zoomIn", "放大"],
+          ["zoomOut", UI.zoomOut],
+          ["zoomIn", UI.zoomIn],
           ["copyBtn", "复制全部"],
           ["wrapBtn", "切换换行"],
         ].forEach(function (item) {

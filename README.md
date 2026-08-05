@@ -2,6 +2,8 @@
 
 在线文件预览服务（Node.js + React + Tailwind CSS + shadcn/ui），一期支持 Office→PDF、图片交互、文本高亮、压缩包浏览、音视频直预览，以及 AES / Basic Auth / 水印等接入控制。
 
+控制台与预览页支持多语言：`zh` / `zh-HK` / `en` / `ja` / `ko` / `th` / `vi` / `id` / `ms`。预览可用 `?lang=`，控制台右上角切换；词条在仓库根目录 `locales/`。
+
 ## 技术栈
 
 - 后端：Node.js + Fastify + TypeScript + LibreOffice

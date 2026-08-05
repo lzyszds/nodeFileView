@@ -1,3 +1,4 @@
+import { previewUi } from "../i18n/index.js";
 import { escapeHtml, layout, watermarkLayer } from "./layout.js";
 
 export function renderExcelViewer(opts: {
@@ -8,6 +9,7 @@ export function renderExcelViewer(opts: {
 }): string {
   const highlight = opts.highlight || "";
 
+  const ui = previewUi();
   return layout({
     title: opts.title,
     chrome: "content",
@@ -189,13 +191,13 @@ export function renderExcelViewer(opts: {
           <span class="meta" id="pageMeta"></span>
         </div>
         <div class="actions">
-          <div class="scale-box" title="统一调整行高">
+          <div class="scale-box" title="${escapeHtml(ui.rowHeight)}">
             <span class="tag">行高</span>
             <button type="button" id="rowOut">−</button>
             <span class="zlabel" id="rowLabel">100%</span>
             <button type="button" id="rowIn">+</button>
           </div>
-          <div class="scale-box" title="统一调整列宽">
+          <div class="scale-box" title="${escapeHtml(ui.colWidth)}">
             <span class="tag">列宽</span>
             <button type="button" id="colOut">−</button>
             <span class="zlabel" id="colLabel">100%</span>
@@ -227,6 +229,7 @@ export function renderExcelViewer(opts: {
       </div>
       <script>
         (async function () {
+          const UI = ${JSON.stringify(ui)};
           const fileUrl = ${JSON.stringify(opts.fileUrl)};
           const keywordInit = ${JSON.stringify(highlight)};
           const status = document.getElementById("status");
@@ -662,7 +665,7 @@ export function renderExcelViewer(opts: {
               }
             );
           } catch (err) {
-            status.textContent = "Excel 预览失败：" + (err && err.message ? err.message : String(err));
+            status.textContent = UI.excelFailed.replace("{error}", err && err.message ? err.message : String(err));
             status.style.color = "#b42318";
           }
 

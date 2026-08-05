@@ -1,3 +1,4 @@
+import { previewUi } from "../i18n/index.js";
 import { escapeHtml, layout, watermarkLayer } from "./layout.js";
 
 export function renderPdfViewer(opts: {
@@ -8,6 +9,7 @@ export function renderPdfViewer(opts: {
   watermark?: string;
   presentation?: boolean;
 }): string {
+  const ui = previewUi();
   const page = opts.page && opts.page > 0 ? opts.page : 1;
   const highlight = opts.highlight || "";
   const presentation = Boolean(opts.presentation);
@@ -17,14 +19,14 @@ export function renderPdfViewer(opts: {
     ext: presentation ? "ppt" : "pdf",
     engine: presentation ? "LibreOffice · PDF" : "pdf.js",
     headerActions: `
-      <button type="button" id="toggleThumbs" class="active">缩略图</button>
-      <button type="button" id="fitWidth">适合宽度</button>
-      <button type="button" class="primary" id="fsBtn">全屏</button>
+      <button type="button" id="toggleThumbs" class="active">☰</button>
+      <button type="button" id="fitWidth">${escapeHtml(ui.fitWidth)}</button>
+      <button type="button" class="primary" id="fsBtn">${escapeHtml(ui.fullscreen)}</button>
     `,
     floatingBar: `
-      <button type="button" id="prevPage" title="上一页">‹</button>
+      <button type="button" id="prevPage" title="${escapeHtml(ui.prevPage)}">‹</button>
       <span class="mono" id="pageInfo">- / -</span>
-      <button type="button" id="nextPage" title="下一页">›</button>
+      <button type="button" id="nextPage" title="${escapeHtml(ui.nextPage)}">›</button>
       <div class="sep"></div>
       <button type="button" id="zoomOut">−</button>
       <span class="mono" id="zoomLabel">100%</span>

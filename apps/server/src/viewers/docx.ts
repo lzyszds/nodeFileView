@@ -1,3 +1,4 @@
+import { previewUi } from "../i18n/index.js";
 import { escapeHtml, layout, watermarkLayer } from "./layout.js";
 
 export function renderDocxViewer(opts: {
@@ -7,6 +8,7 @@ export function renderDocxViewer(opts: {
   highlight?: string;
 }): string {
   const highlight = opts.highlight || "";
+  const ui = previewUi();
   const safeTitle = escapeHtml(opts.title);
   const downloadBase = opts.title.replace(/\.docx$/i, "") || "document";
 
@@ -277,28 +279,28 @@ export function renderDocxViewer(opts: {
     body: `
       <div class="topbar">
         <div style="display:flex;align-items:center;gap:12px;min-width:0;flex:1">
-          <button type="button" id="toggleSidebar" title="目录">目录</button>
+          <button type="button" id="toggleSidebar" title="${escapeHtml(ui.toc)}">${escapeHtml(ui.toc)}</button>
           <span class="meta" id="pageMeta"></span>
         </div>
         <div class="actions">
-          <button type="button" id="editBtn">编辑</button>
-          <button type="button" id="downloadBtn" disabled>下载 DOCX</button>
+          <button type="button" id="editBtn">${escapeHtml(ui.edit)}</button>
+          <button type="button" id="downloadBtn" disabled>${escapeHtml(ui.download)} DOCX</button>
           <span class="sep"></span>
-          <button type="button" id="zoomOut" title="缩小">−</button>
+          <button type="button" id="zoomOut" title="${escapeHtml(ui.zoomOut)}">−</button>
           <button type="button" id="zoomLabel" class="active" style="min-width:64px">100%</button>
-          <button type="button" id="zoomIn" title="放大">+</button>
+          <button type="button" id="zoomIn" title="${escapeHtml(ui.zoomIn)}">+</button>
           <span class="sep"></span>
-          <button type="button" id="fitWidth">适合宽度</button>
-          <button type="button" id="fitPage">实际大小</button>
-          <button type="button" id="printBtn">打印</button>
+          <button type="button" id="fitWidth">${escapeHtml(ui.fitWidth)}</button>
+          <button type="button" id="fitPage">${escapeHtml(ui.fitPage)}</button>
+          <button type="button" id="printBtn">${escapeHtml(ui.print)}</button>
         </div>
       </div>
       ${watermarkLayer(opts.watermark)}
       <div class="shell" id="shell">
         <aside class="sidebar" id="sidebar">
           <div class="sidebar-hd">
-            <span>文档目录</span>
-            <button type="button" id="refreshOutline" style="padding:3px 8px;font-size:12px">刷新</button>
+            <span>${escapeHtml(ui.toc)}</span>
+            <button type="button" id="refreshOutline" style="padding:3px 8px;font-size:12px">${escapeHtml(ui.refreshToc)}</button>
           </div>
           <nav class="outline" id="outline">
             <div class="empty">加载后自动生成标题目录</div>
@@ -322,13 +324,14 @@ export function renderDocxViewer(opts: {
             <span class="hint">编辑后可下载新的 DOCX（版式会尽量保留，复杂对象可能简化）</span>
           </div>
           <div class="viewer" id="viewer">
-            <div id="status">正在加载 Word 文档…</div>
+            <div id="status">${escapeHtml(ui.loadingDoc)}</div>
             <div id="docx-root" hidden></div>
           </div>
         </div>
       </div>
       <script>
         (async function () {
+          const UI = ${JSON.stringify(ui)};
           const fileUrl = ${JSON.stringify(opts.fileUrl)};
           const keyword = ${JSON.stringify(highlight)};
           const downloadBase = ${JSON.stringify(downloadBase)};
@@ -343,15 +346,15 @@ export function renderDocxViewer(opts: {
           const downloadBtn = document.getElementById("downloadBtn");
           const editToolbar = document.getElementById("editToolbar");
           [
-            ["toggleSidebar", "切换目录"],
-            ["refreshOutline", "刷新目录"],
-            ["editBtn", "切换编辑"],
-            ["downloadBtn", "下载 DOCX"],
-            ["zoomOut", "缩小"],
-            ["zoomIn", "放大"],
-            ["fitWidth", "适合宽度"],
-            ["fitPage", "实际大小"],
-            ["printBtn", "打印"],
+            ["toggleSidebar", UI.toc],
+            ["refreshOutline", UI.refreshToc],
+            ["editBtn", UI.edit],
+            ["downloadBtn", UI.download + " DOCX"],
+            ["zoomOut", UI.zoomOut],
+            ["zoomIn", UI.zoomIn],
+            ["fitWidth", UI.fitWidth],
+            ["fitPage", UI.fitPage],
+            ["printBtn", UI.print],
           ].forEach(function (item) {
             window.__NFV_PREVIEW__?.registerButtonAction(item[0], { label: item[1] });
           });
@@ -623,7 +626,7 @@ export function renderDocxViewer(opts: {
           function setEditing(on) {
             editing = on;
             document.body.classList.toggle("editing", on);
-            editBtn.textContent = on ? "完成编辑" : "编辑";
+            editBtn.textContent = on ? UI.doneEdit : UI.edit;
             editBtn.classList.toggle("active", on);
             editToolbar.classList.toggle("visible", on);
             window.__NFV_PREVIEW__?.setState({ editing: editing });
@@ -694,7 +697,7 @@ export function renderDocxViewer(opts: {
               alert(err && err.message ? err.message : String(err));
             } finally {
               downloadBtn.disabled = false;
-              downloadBtn.textContent = "下载 DOCX";
+              downloadBtn.textContent = UI.download + " DOCX";
             }
           }
 
@@ -711,9 +714,9 @@ export function renderDocxViewer(opts: {
           }
 
           try {
-            status.textContent = "正在加载预览引擎…";
+            status.textContent = UI.loadingEngine;
             await ensureDocxLib();
-            status.textContent = "正在解析 Word 文档…";
+            status.textContent = UI.parsingDoc;
             const res = await fetch(fileUrl);
             if (!res.ok) throw new Error("下载文档失败 HTTP " + res.status);
             originalBuffer = await res.arrayBuffer();
@@ -753,7 +756,7 @@ export function renderDocxViewer(opts: {
             downloadBtn.disabled = false;
             if (viewer.clientWidth < 900) fitWidth();
           } catch (err) {
-            status.textContent = "DOCX 预览失败：" + (err && err.message ? err.message : String(err));
+            status.textContent = UI.docxFailed.replace("{error}", err && err.message ? err.message : String(err));
             status.style.color = "#fecaca";
             root.hidden = true;
           }

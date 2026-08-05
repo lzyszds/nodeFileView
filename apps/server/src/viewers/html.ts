@@ -1,3 +1,4 @@
+import { previewUi } from "../i18n/index.js";
 import { escapeHtml, layout, watermarkLayer } from "./layout.js";
 
 function injectBaseHref(html: string, baseHref: string): string {
@@ -20,6 +21,7 @@ export function renderHtmlViewer(opts: {
   watermark?: string;
   truncated?: boolean;
 }): string {
+  const ui = previewUi();
   const prepared = injectBaseHref(opts.content, opts.baseHref || "");
 
   return layout({
@@ -27,14 +29,14 @@ export function renderHtmlViewer(opts: {
     ext: "html",
     engine: "HTML Sandbox",
     headerActions: `
-      <button type="button" id="reloadBtn">刷新</button>
-      <button type="button" id="sourceBtn">查看源码</button>
-      <button type="button" class="primary" id="openBtn">新窗口打开</button>
+      <button type="button" id="reloadBtn">${escapeHtml(ui.refresh)}</button>
+      <button type="button" id="sourceBtn">${escapeHtml(ui.htmlShowSource)}</button>
+      <button type="button" class="primary" id="openBtn">↗</button>
     `,
     floatingBar: `
       <span class="mono">sandbox</span>
       <div class="sep"></div>
-      <span class="mono" id="modeLabel">预览</span>
+      <span class="mono" id="modeLabel">${escapeHtml(ui.htmlPreview)}</span>
     `,
     head: `
       <style>
@@ -106,6 +108,7 @@ export function renderHtmlViewer(opts: {
         <div id="sourcePane"><pre id="sourcePre"></pre></div>
       </div>
       <script>
+        const UI = ${JSON.stringify(ui)};
         const rawHtml = ${JSON.stringify(prepared)};
         const frame = document.getElementById("frame");
         const frameWrap = document.getElementById("frameWrap");
@@ -115,9 +118,9 @@ export function renderHtmlViewer(opts: {
         let blobUrl = "";
         let showingSource = false;
         [
-          ["reloadBtn", "刷新"],
-          ["sourceBtn", "切换源码"],
-          ["openBtn", "新窗口打开"],
+          ["reloadBtn", UI.refresh],
+          ["sourceBtn", UI.htmlShowSource],
+          ["openBtn", "↗"],
         ].forEach(function (item) {
           window.__NFV_PREVIEW__?.registerButtonAction(item[0], { label: item[1] });
         });
@@ -144,8 +147,8 @@ export function renderHtmlViewer(opts: {
           showingSource = !showingSource;
           frameWrap.classList.toggle("hidden", showingSource);
           sourcePane.classList.toggle("active", showingSource);
-          modeLabel.textContent = showingSource ? "源码" : "预览";
-          this.textContent = showingSource ? "返回预览" : "查看源码";
+          modeLabel.textContent = showingSource ? UI.htmlSource : UI.htmlPreview;
+          this.textContent = showingSource ? UI.htmlBackPreview : UI.htmlShowSource;
           window.__NFV_PREVIEW__?.setState({ mode: showingSource ? "source" : "preview" });
         };
         window.addEventListener("beforeunload", function () {
