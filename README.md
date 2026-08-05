@@ -20,15 +20,15 @@ pnpm dev
 ```
 
 - 演示首页（Vite）：http://127.0.0.1:5173 （React + Tailwind 侧栏控制台）
-- API / 预览服务：http://127.0.0.1:8013
-- 旧 demo 模板（可选对照）：http://127.0.0.1:8013/__demo/console7
+- API / 预览服务：http://127.0.0.1:8012
+- 旧 demo 模板（可选对照）：http://127.0.0.1:8012/__demo/console7
 
 生产构建后由服务端托管前端：
 
 ```bash
 pnpm build
 pnpm start
-# 打开 http://127.0.0.1:8013
+# 打开 http://127.0.0.1:8012
 ```
 
 ### Docker
@@ -48,29 +48,42 @@ Workflow：[`.github/workflows/docker-build.yml`](.github/workflows/docker-build
 
 **服务器上运行（主流程）**
 
+不写的项会用镜像/代码默认值：
+
+| 项 | 不写会怎样 |
+|---|---|
+| 端口 | 容器内默认 `8012`；外面用 `-p 宿主机端口:8012` 映射 |
+| `NOT_TRUST_HOST` | **自带默认**（localhost / 私网段等），一般不用再写 |
+| `TRUST_HOST` | 空 = 不额外白名单（仍拦私网 / NOT_TRUST） |
+| `BASIC_AUTH_*` | 默认**不开锁**；生产务必显式打开并设密码 |
+| `BASE_URL` | 可选，仅展示/接入用 |
+
+**精简版（推荐最少写这些）：**
+
 ```bash
 docker pull --platform linux/amd64 ghcr.io/<owner>/nodefileview:1.0.0
 
 docker run -d --name nodefileview --restart=always \
   --platform linux/amd64 \
-  -p 127.0.0.1:8013:8013 \
+  -p 127.0.0.1:8012:8012 \
   -v /path/to/data:/app/data \
   -e BASIC_AUTH_ENABLED=true \
   -e BASIC_AUTH_USER=admin \
   -e BASIC_AUTH_PASS='你的强密码' \
-  -e BASE_URL=https://preview.qqlink.info \
   -e 'TRUST_HOST=*.my-imcloud.com,*.chat.qqlink.*' \
-  -e 'NOT_TRUST_HOST=localhost,127.0.0.1,0.0.0.0,169.254.*,192.168.*,10.*,172.16.*,172.17.*,172.18.*,172.19.*,172.20.*,172.21.*,172.22.*,172.23.*,172.24.*,172.25.*,172.26.*,172.27.*,172.28.*,172.29.*,172.30.*,172.31.*' \
   ghcr.io/<owner>/nodefileview:1.0.0
 ```
 
-把上面命令存到服务器自己的脚本即可（例如 `/opt/nodefileview/run.sh`）。仓库里的 `docker/run.sh` 只是可选本地调试工具，不是上线必经步骤。
+只有当你的文件域名不在默认黑名单、又想限制「只能拉这些域名」时，才需要 `TRUST_HOST`。  
+`NOT_TRUST_HOST` / `BASE_URL` 可按需再加；端口改外面 `-p` 即可，例如 `-p 8012:8012`。
+
+把命令存到服务器脚本即可（例如 `/opt/nodefileview/run.sh`）。仓库里的 `docker/run.sh` 只是可选本地调试工具。
 
 ## 环境变量
 
 | 变量 | 说明 | 默认 |
 |---|---|---|
-| `PORT` | 服务端口 | `8013` |
+| `PORT` | 服务端口 | `8012` |
 | `DATA_DIR` | 上传/缓存/临时目录根 | `./data` |
 | `MAX_UPLOAD_SIZE_MB` | 最大上传 | `200` |
 | `MAX_ARCHIVE_ENTRY_MB` | 压缩包单文件解压上限 | `100` |
@@ -97,7 +110,7 @@ GET /onlinePreview?url=<base64或AES>&watermarkTxt=内部资料&page=1&highlight
 - 本地上传后可在首页点「预览」，或调用：
 
 ```bash
-curl -F file=@demo.docx http://127.0.0.1:8013/api/upload
+curl -F file=@demo.docx http://127.0.0.1:8012/api/upload
 ```
 
 ## 主要 API

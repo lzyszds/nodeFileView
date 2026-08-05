@@ -16,11 +16,11 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      "/api": "http://127.0.0.1:8013",
-      "/assets": "http://127.0.0.1:8013",
-      "/onlinePreview": "http://127.0.0.1:8013",
-      "/__demo": "http://127.0.0.1:8013",
-      "/health": "http://127.0.0.1:8013",
+      "/api": "http://127.0.0.1:8012",
+      "/assets": "http://127.0.0.1:8012",
+      "/onlinePreview": "http://127.0.0.1:8012",
+      "/__demo": "http://127.0.0.1:8012",
+      "/health": "http://127.0.0.1:8012",
     },
   },
   build: {

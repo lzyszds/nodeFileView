@@ -85,7 +85,7 @@ jobs:
             echo '```bash'
             echo "docker pull --platform linux/amd64 ${APP_IMAGE}:${APP_VERSION}"
             echo "docker run -d --name nodefileview --restart=always \\"
-            echo "  --platform linux/amd64 -p 127.0.0.1:8013:8013 \\"
+            echo "  --platform linux/amd64 -p 127.0.0.1:8012:8012 \\"
             echo "  -v /path/to/data:/app/data \\"
             echo "  -e BASIC_AUTH_ENABLED=true -e BASIC_AUTH_USER=admin \\"
             echo "  -e BASIC_AUTH_PASS='你的强密码' \\"

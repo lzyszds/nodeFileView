@@ -16,7 +16,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 IMAGE="${IMAGE:-nodefileview:1.0.0}"
 NAME="${NAME:-nodefileview}"
-HOST_PORT="${HOST_PORT:-8013}"
+HOST_PORT="${HOST_PORT:-8012}"
 
 # —— 按需修改 ——
 BASIC_AUTH_USER="${BASIC_AUTH_USER:-admin}"
@@ -49,7 +49,7 @@ fi
 
 docker run -d --name "$NAME" --restart=always \
   --platform linux/amd64 \
-  -p "127.0.0.1:${HOST_PORT}:8013" \
+  -p "127.0.0.1:${HOST_PORT}:8012" \
   -v "$ROOT/data:/app/data" \
   -e BASIC_AUTH_ENABLED=true \
   -e BASIC_AUTH_USER="$BASIC_AUTH_USER" \

@@ -4,10 +4,10 @@ services:
       context: ..
       dockerfile: docker/Dockerfile
     ports:
-      # 仅本机可达；公网请前面挂反代，并改成 "8013:8013"
-      - "127.0.0.1:8013:8013"
+      # 仅本机可达；公网请前面挂反代，并改成 "8012:8012"
+      - "127.0.0.1:8012:8012"
     environment:
-      PORT: 8013
+      PORT: 8012
       HOST: 0.0.0.0
       DATA_DIR: /app/data
       LIBREOFFICE_PATH: soffice

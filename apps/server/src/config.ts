@@ -27,7 +27,7 @@ function splitHostList(raw: string | undefined): string[] {
 }
 
 const schema = z.object({
-  PORT: z.coerce.number().default(8013),
+  PORT: z.coerce.number().default(8012),
   HOST: z.string().default("0.0.0.0"),
   DATA_DIR: z.string().default("./data"),
   MAX_UPLOAD_SIZE_MB: z.coerce.number().default(200),
