@@ -21,9 +21,10 @@ import { guessLanguage, renderTextViewer } from "../viewers/text.js";
 import { extractArchiveEntry, listArchive } from "./archives/zipService.js";
 import { cacheKey, cacheUrl, removeCache, writeCacheFile } from "./cache.js";
 import { convertToPdf } from "./converters/libreOffice.js";
-import { getFile, parseLocalFileUrl } from "./fileStore.js";
+import { getFile, parseLocalFileUrl, ensureStoredFromDisk } from "./fileStore.js";
 import {
   downloadRemoteCached,
+  remoteCacheId,
   remoteProxyUrl,
 } from "./remoteCache.js";
 import { recordMonitorEvent } from "./monitor.js";
@@ -118,6 +119,22 @@ async function resolveSource(
 
   if (/^https?:\/\//i.test(url)) {
     const remote = await downloadRemoteCached(url, force);
+    // 压缩包目录/条目预览依赖 fileId；把远程缓存登记进 uploads
+    if (resolvePreviewKind(remote.ext) === "archive") {
+      const stored = await ensureStoredFromDisk({
+        absPath: remote.absPath,
+        originalName: remote.filename,
+        ext: remote.ext,
+        stableId: `r${remoteCacheId(url).slice(0, 15)}`,
+        force,
+      });
+      return {
+        absPath: stored.path,
+        filename: stored.originalName,
+        ext: stored.ext,
+        fileId: stored.fileId,
+      };
+    }
     return {
       absPath: remote.absPath,
       filename: remote.filename,

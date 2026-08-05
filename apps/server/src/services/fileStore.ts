@@ -150,6 +150,61 @@ export function parseLocalFileUrl(url: string): string | null {
   return m?.[1] ?? null;
 }
 
+/**
+ * 把已落盘的远程缓存文件登记/复制进 uploads，生成稳定 fileId，
+ * 供压缩包浏览（/api/archive/:fileId）等需要 fileId 的能力使用。
+ */
+export async function ensureStoredFromDisk(opts: {
+  absPath: string;
+  originalName: string;
+  ext: string;
+  /** 稳定 id（如远程 URL 哈希），重复预览可复用 */
+  stableId: string;
+  force?: boolean;
+}): Promise<StoredFile> {
+  const ext = opts.ext.toLowerCase();
+  if (!ext || !isAllowedUploadExt(ext)) {
+    throw new Error(`File type .${ext || "unknown"} is not allowed`);
+  }
+
+  const fileId = opts.stableId.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 24);
+  if (!fileId) throw new Error("Invalid stableId");
+
+  if (!opts.force) {
+    const existing = await getFile(fileId);
+    if (existing) {
+      try {
+        const st = await fs.stat(opts.absPath);
+        if (st.size === existing.size) return existing;
+      } catch {
+        // fall through and refresh
+      }
+    }
+  }
+
+  const originalName = sanitizeFilename(opts.originalName);
+  const storedName = `${fileId}.${ext}`;
+  const dest = safeJoin(config.uploadsDir, storedName);
+  await fs.copyFile(opts.absPath, dest);
+
+  const size = (await fs.stat(dest)).size;
+  const record: StoredFile = {
+    fileId,
+    name: storedName,
+    originalName,
+    size,
+    ext,
+    mime: mime.lookup(ext) || "application/octet-stream",
+    createdAt: new Date().toISOString(),
+    path: storedName,
+  };
+
+  const meta = await readMeta();
+  meta.files[fileId] = record;
+  await writeMeta(meta);
+  return { ...record, path: dest };
+}
+
 export async function downloadRemoteToTemp(
   remoteUrl: string,
 ): Promise<{ absPath: string; filename: string; ext: string; size: number }> {
