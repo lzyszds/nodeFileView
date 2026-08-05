@@ -1,5 +1,4 @@
 import type { ArchiveEntry } from "../services/archives/zipService.js";
-import fs from "node:fs";
 import { escapeHtml, layout, watermarkLayer } from "./layout.js";
 
 function formatSize(n: number): string {
@@ -8,16 +7,94 @@ function formatSize(n: number): string {
   return `${(n / 1024 / 1024).toFixed(2)} MB`;
 }
 
-function iconFor(path: string, isDir: boolean): string {
-  if (isDir) return "📁";
-  const ext = path.split(".").pop()?.toLowerCase() || "";
-  if (["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp"].includes(ext)) return "🖼️";
-  if (["mp4", "webm", "mov", "mp3", "wav"].includes(ext)) return "🎬";
-  if (["doc", "docx", "pdf", "txt", "md"].includes(ext)) return "📄";
-  if (["xls", "xlsx", "csv"].includes(ext)) return "📊";
-  if (["ppt", "pptx"].includes(ext)) return "📑";
-  if (["js", "ts", "py", "java", "css", "html", "json"].includes(ext)) return "💻";
-  return "📦";
+function normalizePath(p: string): string {
+  return p
+    .replace(/\\/g, "/")
+    .replace(/\/+/g, "/")
+    .replace(/^\//, "")
+    .replace(/\/$/, "");
+}
+
+type TreeNode = {
+  id: string;
+  name: string;
+  isDir: boolean;
+  size: number;
+  path: string;
+  children: TreeNode[];
+};
+
+/** 仅按 `/` 分段建树；文件名里的逗号、空格、`@` 等一律当作文件名字符 */
+function buildTree(entries: ArchiveEntry[]): TreeNode {
+  const root: TreeNode = {
+    id: "",
+    name: "根目录",
+    isDir: true,
+    size: 0,
+    path: "",
+    children: [],
+  };
+
+  const dirMap = new Map<string, TreeNode>([["", root]]);
+
+  const ensureDir = (dirPath: string): TreeNode => {
+    const id = normalizePath(dirPath);
+    const existing = dirMap.get(id);
+    if (existing) return existing;
+
+    const parts = id.split("/").filter(Boolean);
+    const name = parts[parts.length - 1] || id;
+    const parentId = parts.slice(0, -1).join("/");
+    const parent = ensureDir(parentId);
+    const node: TreeNode = {
+      id,
+      name,
+      isDir: true,
+      size: 0,
+      path: id ? `${id}/` : "",
+      children: [],
+    };
+    parent.children.push(node);
+    dirMap.set(id, node);
+    return node;
+  };
+
+  for (const entry of entries) {
+    const full = normalizePath(entry.path);
+    if (!full || full.includes("..")) continue;
+
+    if (entry.isDirectory) {
+      ensureDir(full);
+      continue;
+    }
+
+    const parts = full.split("/").filter(Boolean);
+    if (!parts.length) continue;
+    const fileName = parts[parts.length - 1];
+    const parentId = parts.slice(0, -1).join("/");
+    const parent = ensureDir(parentId);
+    if (parent.children.some((c) => !c.isDir && c.path === full)) continue;
+    parent.children.push({
+      id: full,
+      name: fileName,
+      isDir: false,
+      size: entry.size || 0,
+      path: full,
+      children: [],
+    });
+  }
+
+  const sortRec = (node: TreeNode) => {
+    node.children.sort((a, b) => {
+      if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
+      return a.name.localeCompare(b.name, "zh");
+    });
+    for (const child of node.children) {
+      if (child.isDir) sortRec(child);
+    }
+  };
+  sortRec(root);
+  return root;
 }
 
 export function renderArchiveViewer(opts: {
@@ -26,370 +103,631 @@ export function renderArchiveViewer(opts: {
   entries: ArchiveEntry[];
   watermark?: string;
 }): string {
-  const demoPath =
-    process.env.DEMO_ARCHIVE8_PATH ||
-    "/Users/mac/Downloads/ai_studio_code (8).html";
-  if (demoPath) {
-    try {
-      const demo8 = fs.readFileSync(demoPath, "utf8");
-
-      // ===== Inject real archive entries into demo8 template =====
-      const rootId = "root";
-
-      const normalizePath = (p: string) =>
-        p.replace(/\\/g, "/").replace(/\/$/, "");
-
-      const getDirId = (dirPath: string) => normalizePath(dirPath);
-      const splitDirId = (dirId: string) =>
-        dirId === rootId ? [] : dirId.split("/").filter(Boolean);
-
-      const buildAllFilesAndTree = () => {
-        // 有些压缩包不会显式携带所有目录条目（只带文件），所以目录树必须从“文件的父目录/祖先目录”推导出来
-        const dirIdSet = new Set<string>();
-        for (const e of opts.entries) {
-          if (!e.isDirectory) continue;
-          const id = getDirId(e.path);
-          if (id && id !== rootId) dirIdSet.add(id);
-        }
-
-        const files = opts.entries
-          .filter((e) => !e.isDirectory)
-          .map((e) => {
-            const filePath = normalizePath(e.path);
-            const parts = filePath.split("/").filter(Boolean);
-            const parentDirId = parts.slice(0, -1).join("/") || rootId;
-            const ext = (e.name.split(".").pop() || "").toLowerCase();
-
-            const type = (() => {
-              if (["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp"].includes(ext))
-                return "image";
-              if (["py", "js", "json", "md", "html", "css", "ts", "tsx", "txt", "log"].includes(ext))
-                return "code";
-              return ext === "exe" || ["sh", "bat", "cmd", "shrc"].includes(ext) ? "bin" : "doc";
-            })();
-
-            // 推导所有祖先目录，保证目录树不会缺层
-            let cur = parentDirId;
-            while (cur && cur !== rootId) {
-              dirIdSet.add(cur);
-              const idx = cur.lastIndexOf("/");
-              cur = idx >= 0 ? cur.slice(0, idx) : "";
-            }
-
-            return {
-              name: e.name,
-              ext,
-              type: type === "bin" ? "bin" : type === "doc" ? "doc" : type,
-              size: e.size,
-              parentDirId,
-            };
-          });
-
-        const dirs = Array.from(dirIdSet)
-          .filter((id) => id && id !== rootId)
-          .map((id) => ({
-            id,
-            name: id.split("/").filter(Boolean).pop() || id,
-          }));
-
-        const fileCountByDir = new Map<string, number>();
-        for (const f of files) {
-          fileCountByDir.set(
-            f.parentDirId,
-            (fileCountByDir.get(f.parentDirId) || 0) + 1,
-          );
-        }
-
-        const rootFileCount = fileCountByDir.get(rootId) || 0;
-
-        // init mapping for each folder id
-        const allFiles: Record<
-          string,
-          { folders: Array<{ id: string; name: string; date: string }>; files: Array<any> }
-        > = {};
-
-        allFiles[rootId] = { folders: [], files: [] };
-
-        for (const d of dirs) {
-          allFiles[d.id] = allFiles[d.id] || { folders: [], files: [] };
-        }
-
-        // folder tree
-        const dirById = new Map<string, string>(); // id -> display name
-        for (const d of dirs) dirById.set(d.id, d.name);
-
-        for (const d of dirs) {
-          const parts = splitDirId(d.id);
-          const parentDirId =
-            parts.length <= 1 ? rootId : parts.slice(0, -1).join("/");
-          if (!allFiles[parentDirId]) {
-            allFiles[parentDirId] = { folders: [], files: [] };
-          }
-          const parent = allFiles[parentDirId];
-          if (!parent.folders.some((x) => x.id === d.id)) {
-            parent.folders.push({
-              id: d.id,
-              name: d.name,
-              date: "-",
-            });
-          }
-        }
-
-        // file lists
-        for (const f of files) {
-          if (!allFiles[f.parentDirId]) {
-            allFiles[f.parentDirId] = { folders: [], files: [] };
-          }
-          allFiles[f.parentDirId].files.push({
-            name: f.name,
-            ext: f.ext,
-            type: f.type,
-            size: formatSize(f.size),
-            compressedSize: formatSize(f.size),
-            date: "-",
-          });
-        }
-
-        // sort folders/files for stable rendering
-        const sortByName = (a: any, b: any) =>
-          String(a.name).localeCompare(String(b.name));
-        const sortByFileName = (a: any, b: any) =>
-          String(a.name).localeCompare(String(b.name));
-
-        for (const key of Object.keys(allFiles)) {
-          allFiles[key].folders.sort((a, b) => sortByName(a, b));
-          allFiles[key].files.sort((a, b) => sortByFileName(a, b));
-        }
-
-        const treeData = [
-          {
-            id: rootId,
-            name: "根目录",
-            level: 0,
-            isOpen: true,
-            fileCount: rootFileCount,
-          },
-          ...dirs.map((d) => {
-            const parts = splitDirId(d.id);
-            const level = parts.length;
-            return {
-              id: d.id,
-              name: d.name,
-              level,
-              isOpen: level === 1,
-              fileCount: fileCountByDir.get(d.id) || 0,
-            };
-          }),
-        ].sort((a, b) => {
-          if (a.level !== b.level) return a.level - b.level;
-          return String(a.name).localeCompare(String(b.name));
-        });
-
-        return { treeData, allFiles };
-      };
-
-      const { treeData, allFiles } = buildAllFilesAndTree();
-
-      const fileEntries = opts.entries.filter((e) => !e.isDirectory);
-      const totalSize = fileEntries.reduce((sum, e) => sum + (e.size || 0), 0);
-      const archive = {
-        name: opts.title,
-        ext: (opts.title.split(".").pop() || "").toLowerCase(),
-        compressedSize: formatSize(totalSize),
-        uncompressedSize: formatSize(totalSize),
-        ratio: "100%",
-      };
-
-      const patched = demo8
-        // archive meta
-        .replace(
-          /const archive = ref\(\{[\s\S]*?\}\);\s*\n\s*const searchQuery/s,
-          `const archive = ref(${JSON.stringify(archive)});\n            const searchQuery`,
-        )
-        // treeData
-        .replace(
-          /const treeData = ref\(\[[\s\S]*?\]\);\s*\n\s*\/\/ 文件列表模拟数据/s,
-          `const treeData = ref(${JSON.stringify(treeData)});\n\n            // 文件列表模拟数据`,
-        )
-        // allFiles
-        .replace(
-          /const allFiles = ref\(\{[\s\S]*?\}\);\s*\n\s*\/\/ 计算当前文件夹下的文件夹和文件/s,
-          `const allFiles = ref(${JSON.stringify(allFiles)});\n\n            // 计算当前文件夹下的文件夹和文件`,
-        )
-        // currentPath (make it generic by folderId splitting)
-        .replace(
-          /\/\/ 面包屑路径计算[\s\S]*?const currentPath = computed\(\(\) => \{[\s\S]*?\}\);\s*\n\s*const selectFolder/s,
-          `// 面包屑路径计算
-            const currentPath = computed(() => {
-                if (currentFolderId.value === 'root') return [];
-                return String(currentFolderId.value).split('/').filter(Boolean);
-            });
-
-            const selectFolder`,
-        )
-        // insert navigateToPath after selectFolder
-        .replace(
-          /const selectFolder = \(node\) => \{[\s\S]*?\};\s*\n\s*\/\/ 触发包内二次无缝预览/s,
-          `const selectFolder = (node) => {
-                currentFolderId.value = node.id;
-                activeSubFile.value = null; // 切换文件夹时关闭二级预览
-            };
-
-            // 点击面包屑跳转到对应目录（folderId 由路径段 join('/'）生成）
-            const navigateToPath = (idx) => {
-                const parts = currentPath.value.slice(0, idx + 1);
-                currentFolderId.value = parts.join('/') || 'root';
-                activeSubFile.value = null;
-            };
-
-            // 触发包内二次无缝预览`,
-        )
-        // return object: expose navigateToPath
-        .replace(/selectFolder,\s*previewSubFile,/g, "selectFolder, navigateToPath, previewSubFile,");
-
-      return patched;
-    } catch {
-      // ignore and fallback to native implementation
-    }
-  }
-
   const encoded = Buffer.from(`file://local/${opts.fileId}`, "utf8").toString(
     "base64",
   );
-
+  const tree = buildTree(opts.entries);
   const files = opts.entries.filter((e) => !e.isDirectory);
   const dirs = opts.entries.filter((e) => e.isDirectory);
-
-  const treeItems = [...dirs, ...files]
-    .map((e) => {
-      const depth = e.path.replace(/\\/g, "/").split("/").filter(Boolean).length - 1;
-      const pad = Math.max(0, depth) * 18;
-      const name = e.name || e.path;
-      if (e.isDirectory) {
-        return `<div class="row dir" style="--depth:${pad}px">
-          <span class="tree" aria-hidden="true"></span>
-          <span class="ico">${iconFor(e.path, true)}</span>
-          <span class="name">${escapeHtml(name)}</span>
-          <span class="meta">文件夹</span>
-        </div>`;
-      }
-      const href = `/onlinePreview?url=${encodeURIComponent(encoded)}&archiveEntry=${encodeURIComponent(e.path)}`;
-      return `<a class="row file" style="--depth:${pad}px" href="${href}" target="_blank" rel="noopener">
-        <span class="tree" aria-hidden="true"></span>
-        <span class="ico">${iconFor(e.path, false)}</span>
-        <span class="name">${escapeHtml(name)}</span>
-        <span class="meta">${formatSize(e.size)}</span>
-      </a>`;
-    })
-    .join("");
+  const totalSize = files.reduce((sum, e) => sum + (e.size || 0), 0);
+  const treeJson = JSON.stringify(tree);
+  const previewBase = `/onlinePreview?url=${encodeURIComponent(encoded)}&archiveEntry=`;
 
   return layout({
     title: opts.title,
     ext: "zip",
     engine: "Archive Browser",
+    footerLeft: `${files.length} 个文件 · ${formatSize(totalSize)}`,
     head: `
       <style>
-        .viewer {
-          background:
-            radial-gradient(circle at top left, rgba(99, 102, 241, 0.08), transparent 28%),
-            linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%);
-        }
-        .archive-shell {
-          min-height: 100%;
-          padding: 20px;
-        }
-        .list {
-          margin: 0 auto;
-          background: rgba(255, 255, 255, 0.9);
-          border: 1px solid rgba(226, 232, 240, 0.96);
-          border-radius: 18px;
-          overflow: auto;
-          max-width: 1080px;
-          width: 100%;
-          min-height: 100%;
-          box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
-          backdrop-filter: blur(12px);
-        }
-        .list-wrap {
-          display: flex;
+        .viewer { height: 100%; min-height: 0; }
+        .arc {
+          display: grid;
+          grid-template-columns: minmax(220px, 280px) 1fr;
           height: 100%;
+          min-height: 0;
+          background: #fff;
+        }
+        .arc-side {
+          border-right: 1px solid var(--border);
+          display: flex;
+          flex-direction: column;
+          min-height: 0;
+          background: #f8fafc;
+        }
+        .arc-side-hd {
+          padding: 12px 14px;
+          font-size: 12px;
+          font-weight: 600;
+          color: #64748b;
+          border-bottom: 1px solid var(--border);
+        }
+        .arc-tree {
+          flex: 1;
+          overflow: auto;
+          padding: 8px;
+          font-size: 12px;
+        }
+        .tn {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          width: 100%;
+          border: 0;
+          background: transparent;
+          text-align: left;
+          padding: 6px 8px;
+          border-radius: 8px;
+          cursor: pointer;
+          color: #334155;
+        }
+        .tn:hover { background: #eef2ff; }
+        .tn.active {
+          background: #e0e7ff;
+          color: #3730a3;
+          font-weight: 600;
+        }
+        .tn .caret {
+          display: inline-flex;
+          width: 14px;
+          height: 14px;
+          color: #94a3b8;
+          flex-shrink: 0;
+          align-items: center;
+          justify-content: center;
+        }
+        .tn .caret svg { width: 12px; height: 12px; }
+        .tn .fi {
+          display: inline-flex;
+          width: 16px;
+          height: 16px;
+          flex-shrink: 0;
+          color: #f59e0b;
+        }
+        .tn .fi svg { width: 16px; height: 16px; }
+        .tn .name {
+          min-width: 0;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .tn .cnt {
+          margin-left: auto;
+          color: #94a3b8;
+          font-variant-numeric: tabular-nums;
+          font-size: 10px;
+        }
+        .arc-main {
+          display: flex;
+          flex-direction: column;
+          min-width: 0;
+          min-height: 0;
+          position: relative;
+        }
+        .arc-crumb {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 4px;
+          align-items: center;
+          padding: 10px 16px;
+          border-bottom: 1px solid var(--border);
+          font-size: 12px;
+          color: #64748b;
+          flex-shrink: 0;
+        }
+        .arc-crumb button {
+          border: 0;
+          background: transparent;
+          color: #4f46e5;
+          cursor: pointer;
           padding: 0;
+          font: inherit;
+        }
+        .arc-crumb button:hover { text-decoration: underline; }
+        .arc-crumb .sep { color: #cbd5e1; }
+        .arc-stage {
+          flex: 1;
+          min-height: 0;
+          position: relative;
+          display: flex;
+          flex-direction: column;
+        }
+        .arc-list {
+          flex: 1;
+          overflow: auto;
+          min-height: 0;
+        }
+        .arc-preview {
+          display: none;
+          flex: 1;
+          min-height: 0;
+          flex-direction: column;
+          background: #fff;
+        }
+        .arc-preview.open {
+          display: flex;
+        }
+        .arc-preview.open ~ .arc-list,
+        .arc-stage.previewing .arc-list {
+          display: none;
+        }
+        .arc-stage.previewing .arc-preview {
+          display: flex;
+        }
+        .pv-bar {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 8px 14px;
+          border-bottom: 1px solid var(--border);
+          flex-shrink: 0;
+          background: #f8fafc;
+        }
+        .pv-back {
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          border: 1px solid var(--border);
+          background: #fff;
+          border-radius: 8px;
+          padding: 5px 10px;
+          font-size: 12px;
+          color: #334155;
+          cursor: pointer;
+        }
+        .pv-back:hover { background: #eef2ff; color: #3730a3; }
+        .pv-back svg { width: 14px; height: 14px; }
+        .pv-title {
+          min-width: 0;
+          flex: 1;
+          font-size: 12px;
+          font-weight: 600;
+          color: #0f172a;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .pv-body {
+          flex: 1;
+          min-height: 0;
+          overflow: auto;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: #fff;
+        }
+        .pv-body img {
+          max-width: 100%;
+          max-height: 100%;
+          object-fit: contain;
+          display: block;
+        }
+        .pv-body video,
+        .pv-body audio {
+          max-width: min(920px, 100%);
+          width: 100%;
+        }
+        .pv-body iframe {
+          width: 100%;
+          height: 100%;
+          border: 0;
+          background: #fff;
+        }
+        .pv-body .pv-fallback {
+          padding: 24px;
+          text-align: center;
+          color: #64748b;
+          font-size: 13px;
+        }
+        .row.file.active {
+          background: #eef2ff;
         }
         .row {
           display: grid;
-          grid-template-columns: var(--depth, 0px) 32px minmax(0, 1fr) auto;
+          grid-template-columns: 28px minmax(0, 1fr) 88px;
           gap: 10px;
           align-items: center;
-          padding: 14px 18px;
-          border-bottom: 1px solid rgba(241, 245, 249, 0.95);
-          font-size: 14px;
+          padding: 12px 16px;
+          border-bottom: 1px solid #f1f5f9;
           color: inherit;
           text-decoration: none;
-          transition: background .16s ease, transform .16s ease;
+          text-align: left;
+          font-size: 13px;
         }
-        .row:last-child { border-bottom: 0; }
-        .row.file:hover {
-          background: rgba(79, 70, 229, 0.06);
+        .row:hover { background: #f8fafc; }
+        .row .ico {
+          display: inline-flex;
+          width: 18px;
+          height: 18px;
+          align-items: center;
+          justify-content: center;
         }
-        .row.dir {
-          background: rgba(248, 250, 252, 0.9);
-        }
-        .row.dir .name { color: #475569; }
-        .tree {
-          width: var(--depth, 0px);
-          height: 1px;
-        }
-        .ico { text-align: center; }
-        .name {
-          color: #0f172a;
-          overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        .row .ico svg { width: 18px; height: 18px; }
+        .row .ico.folder { color: #f59e0b; }
+        .row .ico.image { color: #06b6d4; }
+        .row .ico.media { color: #8b5cf6; }
+        .row .ico.doc { color: #3b82f6; }
+        .row .ico.sheet { color: #10b981; }
+        .row .ico.code { color: #64748b; }
+        .row .ico.archive { color: #f97316; }
+        .row .ico.file { color: #94a3b8; }
+        .row .nm {
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
           font-weight: 500;
+          color: #0f172a;
+          text-align: left;
+          justify-self: start;
+          width: 100%;
         }
-        .row.file .name {
-          color: var(--accent-700);
-        }
-        .meta {
-          color: var(--muted); font-variant-numeric: tabular-nums;
-          min-width: 72px; text-align: right;
+        .row.file .nm { color: #4338ca; }
+        .row .meta {
+          text-align: right;
+          color: #94a3b8;
           font-family: "IBM Plex Mono", ui-monospace, monospace;
           font-size: 11px;
-          letter-spacing: 0.01em;
         }
-        .empty { padding: 48px; text-align: center; color: var(--muted); }
+        .empty {
+          padding: 48px 24px;
+          text-align: center;
+          color: var(--muted);
+          font-size: 13px;
+        }
         @media (max-width: 720px) {
-          .archive-shell { padding: 0; }
-          .list {
-            border-radius: 0;
-            min-height: 100%;
-            border-left: 0;
-            border-right: 0;
-          }
-          .row {
-            grid-template-columns: var(--depth, 0px) 28px minmax(0, 1fr);
-          }
-          .meta {
-            grid-column: 3;
-            text-align: left;
-            min-width: 0;
-          }
+          .arc { grid-template-columns: 1fr; grid-template-rows: 40% 1fr; }
+          .arc-side { border-right: 0; border-bottom: 1px solid var(--border); }
         }
       </style>
     `,
     body: `
       ${watermarkLayer(opts.watermark)}
       <div class="viewer">
-        <div class="archive-shell list-wrap">
-          <div class="list" id="list">
-            ${treeItems || `<div class="empty">空压缩包</div>`}
-          </div>
+        <div class="arc" id="arc-app">
+          <aside class="arc-side">
+            <div class="arc-side-hd">目录树</div>
+            <div class="arc-tree" id="arc-tree"></div>
+          </aside>
+          <section class="arc-main">
+            <div class="arc-crumb" id="arc-crumb"></div>
+            <div class="arc-stage" id="arc-stage">
+              <div class="arc-list" id="arc-list"></div>
+              <div class="arc-preview" id="arc-preview">
+                <div class="pv-bar">
+                  <button type="button" class="pv-back" id="pv-back">
+                    <span aria-hidden="true"></span>
+                    返回列表
+                  </button>
+                  <div class="pv-title" id="pv-title"></div>
+                </div>
+                <div class="pv-body" id="pv-body"></div>
+              </div>
+            </div>
+          </section>
         </div>
       </div>
       <script>
-        window.__NFV_PREVIEW__?.setState({
-          kind: "archive",
-          fileCount: ${files.length},
-          dirCount: ${dirs.length},
-        });
+        (function () {
+          const TREE = ${treeJson};
+          const PREVIEW_BASE = ${JSON.stringify(previewBase)};
+          const ENTRY_BASE = ${JSON.stringify(`/api/archive/${opts.fileId}/entry?path=`)};
+
+          function formatSize(n) {
+            if (n < 1024) return n + " B";
+            if (n < 1024 * 1024) return (n / 1024).toFixed(1) + " KB";
+            return (n / 1024 / 1024).toFixed(2) + " MB";
+          }
+
+          function svgIcon(paths) {
+            return (
+              '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" ' +
+              'stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ' +
+              'aria-hidden="true">' + paths + "</svg>"
+            );
+          }
+
+          const ICONS = {
+            chevronRight: svgIcon('<path d="m9 18 6-6-6-6"/>'),
+            chevronDown: svgIcon('<path d="m6 9 6 6 6-6"/>'),
+            arrowLeft: svgIcon('<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>'),
+            folder: svgIcon(
+              '<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.64 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>'
+            ),
+            folderOpen: svgIcon(
+              '<path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/>'
+            ),
+            image: svgIcon(
+              '<rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>'
+            ),
+            film: svgIcon(
+              '<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M7 3v18"/><path d="M3 7.5h4"/><path d="M3 12h18"/><path d="M3 16.5h4"/><path d="M17 3v18"/><path d="M17 7.5h4"/><path d="M17 16.5h4"/>'
+            ),
+            music: svgIcon(
+              '<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>'
+            ),
+            fileText: svgIcon(
+              '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/>'
+            ),
+            sheet: svgIcon(
+              '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M8 13h2"/><path d="M14 13h2"/><path d="M8 17h2"/><path d="M14 17h2"/>'
+            ),
+            code: svgIcon(
+              '<polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>'
+            ),
+            archive: svgIcon(
+              '<path d="M10 12v-1"/><path d="M10 18v-2"/><path d="M10 7V6"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M15.5 22H18a2 2 0 0 0 2-2V7l-5-5H6a2 2 0 0 0-2 2v16a2 2 0 0 0 .274 1.01"/><circle cx="10" cy="20" r="2"/>'
+            ),
+            file: svgIcon(
+              '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/>'
+            ),
+          };
+
+          function fileKind(path) {
+            const ext = (path.split(".").pop() || "").toLowerCase();
+            if (["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "heic", "ico"].includes(ext))
+              return { icon: ICONS.image, cls: "image", mode: "image" };
+            if (["mp4", "webm", "mov", "mkv", "avi"].includes(ext))
+              return { icon: ICONS.film, cls: "media", mode: "video" };
+            if (["mp3", "wav", "flac", "aac", "ogg", "m4a"].includes(ext))
+              return { icon: ICONS.music, cls: "media", mode: "audio" };
+            if (["doc", "docx", "pdf", "txt", "md", "rtf", "pages"].includes(ext))
+              return { icon: ICONS.fileText, cls: "doc", mode: "iframe" };
+            if (["xls", "xlsx", "csv", "numbers"].includes(ext))
+              return { icon: ICONS.sheet, cls: "sheet", mode: "iframe" };
+            if (["ppt", "pptx", "key"].includes(ext))
+              return { icon: ICONS.fileText, cls: "doc", mode: "iframe" };
+            if (["js", "ts", "tsx", "jsx", "py", "java", "css", "html", "json", "xml", "yml", "yaml", "sh"].includes(ext))
+              return { icon: ICONS.code, cls: "code", mode: "iframe" };
+            if (["zip", "rar", "7z", "tar", "gz", "tgz", "jar"].includes(ext))
+              return { icon: ICONS.archive, cls: "archive", mode: "iframe" };
+            return { icon: ICONS.file, cls: "file", mode: "iframe" };
+          }
+
+          function makeIcon(html, cls) {
+            const el = document.createElement("span");
+            el.className = "ico" + (cls ? " " + cls : "");
+            el.innerHTML = html;
+            return el;
+          }
+
+          function countFiles(node) {
+            if (!node.isDir) return 1;
+            return node.children.reduce(function (sum, c) { return sum + countFiles(c); }, 0);
+          }
+
+          const treeEl = document.getElementById("arc-tree");
+          const listEl = document.getElementById("arc-list");
+          const crumbEl = document.getElementById("arc-crumb");
+          const stageEl = document.getElementById("arc-stage");
+          const previewEl = document.getElementById("arc-preview");
+          const pvBody = document.getElementById("pv-body");
+          const pvTitle = document.getElementById("pv-title");
+          const pvBack = document.getElementById("pv-back");
+          pvBack.querySelector("span").innerHTML = ICONS.arrowLeft;
+
+          const openDirs = new Set([""]);
+          let currentId = "";
+          let previewFile = null;
+
+          function findNode(id, node) {
+            if (node.id === id) return node;
+            for (const c of node.children) {
+              const hit = findNode(id, c);
+              if (hit) return hit;
+            }
+            return null;
+          }
+
+          function ancestors(id) {
+            if (!id) return [""];
+            const parts = id.split("/").filter(Boolean);
+            const out = [""];
+            for (let i = 0; i < parts.length; i++) out.push(parts.slice(0, i + 1).join("/"));
+            return out;
+          }
+
+          function closePreview() {
+            previewFile = null;
+            stageEl.classList.remove("previewing");
+            pvBody.innerHTML = "";
+            pvTitle.textContent = "";
+            renderList();
+          }
+
+          function openPreview(file) {
+            previewFile = file;
+            stageEl.classList.add("previewing");
+            pvTitle.textContent = file.name;
+            pvTitle.title = file.path;
+            pvBody.innerHTML = "";
+            const kind = fileKind(file.path);
+            const entryUrl = ENTRY_BASE + encodeURIComponent(file.path);
+            const fullUrl = PREVIEW_BASE + encodeURIComponent(file.path);
+
+            if (kind.mode === "image") {
+              const img = document.createElement("img");
+              img.src = entryUrl;
+              img.alt = file.name;
+              img.loading = "lazy";
+              img.onerror = function () {
+                pvBody.innerHTML = '<div class="pv-fallback">图片加载失败</div>';
+              };
+              pvBody.appendChild(img);
+            } else if (kind.mode === "video") {
+              const video = document.createElement("video");
+              video.src = entryUrl;
+              video.controls = true;
+              video.playsInline = true;
+              pvBody.appendChild(video);
+            } else if (kind.mode === "audio") {
+              const audio = document.createElement("audio");
+              audio.src = entryUrl;
+              audio.controls = true;
+              pvBody.appendChild(audio);
+            } else {
+              const iframe = document.createElement("iframe");
+              iframe.src = fullUrl;
+              iframe.title = file.name;
+              iframe.setAttribute("sandbox", "allow-scripts allow-same-origin allow-downloads allow-forms");
+              pvBody.appendChild(iframe);
+            }
+            renderList();
+          }
+
+          pvBack.addEventListener("click", closePreview);
+
+          function renderTree() {
+            const frag = document.createDocumentFragment();
+            function walk(node, depth) {
+              if (node.id !== "") {
+                const btn = document.createElement("button");
+                btn.type = "button";
+                btn.className = "tn" + (node.id === currentId ? " active" : "");
+                btn.style.paddingLeft = (8 + depth * 14) + "px";
+                const hasKids = node.children.some(function (c) { return c.isDir; });
+                const open = openDirs.has(node.id);
+                const caret = document.createElement("span");
+                caret.className = "caret";
+                caret.innerHTML = hasKids
+                  ? (open ? ICONS.chevronDown : ICONS.chevronRight)
+                  : "";
+                const fi = document.createElement("span");
+                fi.className = "fi";
+                fi.innerHTML = open ? ICONS.folderOpen : ICONS.folder;
+                const name = document.createElement("span");
+                name.className = "name";
+                name.title = node.name;
+                name.textContent = node.name;
+                const cnt = document.createElement("span");
+                cnt.className = "cnt";
+                cnt.textContent = String(countFiles(node));
+                btn.appendChild(caret);
+                btn.appendChild(fi);
+                btn.appendChild(name);
+                btn.appendChild(cnt);
+                btn.addEventListener("click", function (ev) {
+                  ev.stopPropagation();
+                  closePreview();
+                  if (hasKids && currentId === node.id) {
+                    if (openDirs.has(node.id)) openDirs.delete(node.id);
+                    else openDirs.add(node.id);
+                  } else {
+                    openDirs.add(node.id);
+                    ancestors(node.id).forEach(function (a) { openDirs.add(a); });
+                    currentId = node.id;
+                  }
+                  render();
+                });
+                frag.appendChild(btn);
+              }
+              const showKids = node.id === "" || openDirs.has(node.id);
+              if (!showKids) return;
+              for (const child of node.children) {
+                if (child.isDir) walk(child, node.id === "" ? 0 : depth + 1);
+              }
+            }
+            walk(TREE, 0);
+            treeEl.innerHTML = "";
+            treeEl.appendChild(frag);
+          }
+
+          function renderCrumb() {
+            const parts = currentId ? currentId.split("/").filter(Boolean) : [];
+            crumbEl.innerHTML = "";
+            const rootBtn = document.createElement("button");
+            rootBtn.type = "button";
+            rootBtn.textContent = "根目录";
+            rootBtn.addEventListener("click", function () {
+              closePreview();
+              currentId = "";
+              render();
+            });
+            crumbEl.appendChild(rootBtn);
+            parts.forEach(function (part, idx) {
+              const sep = document.createElement("span");
+              sep.className = "sep";
+              sep.textContent = "/";
+              crumbEl.appendChild(sep);
+              const btn = document.createElement("button");
+              btn.type = "button";
+              btn.textContent = part;
+              const id = parts.slice(0, idx + 1).join("/");
+              btn.addEventListener("click", function () {
+                closePreview();
+                currentId = id;
+                ancestors(id).forEach(function (a) { openDirs.add(a); });
+                render();
+              });
+              crumbEl.appendChild(btn);
+            });
+          }
+
+          function renderList() {
+            const node = findNode(currentId, TREE) || TREE;
+            listEl.innerHTML = "";
+            if (!node.children.length) {
+              listEl.innerHTML = '<div class="empty">此目录为空</div>';
+              return;
+            }
+            for (const child of node.children) {
+              if (child.isDir) {
+                const row = document.createElement("button");
+                row.type = "button";
+                row.className = "row";
+                row.style.cssText = "width:100%;border:0;background:transparent;cursor:pointer";
+                row.appendChild(makeIcon(ICONS.folder, "folder"));
+                const nm = document.createElement("span");
+                nm.className = "nm";
+                nm.textContent = child.name;
+                const meta = document.createElement("span");
+                meta.className = "meta";
+                meta.textContent = "文件夹";
+                row.appendChild(nm);
+                row.appendChild(meta);
+                row.addEventListener("click", function () {
+                  closePreview();
+                  currentId = child.id;
+                  openDirs.add(child.id);
+                  ancestors(child.id).forEach(function (a) { openDirs.add(a); });
+                  render();
+                });
+                listEl.appendChild(row);
+              } else {
+                const kind = fileKind(child.path);
+                const row = document.createElement("button");
+                row.type = "button";
+                row.className = "row file" + (previewFile && previewFile.path === child.path ? " active" : "");
+                row.style.cssText = "width:100%;border:0;background:transparent;cursor:pointer";
+                row.appendChild(makeIcon(kind.icon, kind.cls));
+                const nm = document.createElement("span");
+                nm.className = "nm";
+                nm.textContent = child.name;
+                const meta = document.createElement("span");
+                meta.className = "meta";
+                meta.textContent = formatSize(child.size);
+                row.appendChild(nm);
+                row.appendChild(meta);
+                row.addEventListener("click", function () {
+                  openPreview(child);
+                });
+                listEl.appendChild(row);
+              }
+            }
+          }
+
+          function render() {
+            renderTree();
+            renderCrumb();
+            if (!previewFile) renderList();
+          }
+
+          render();
+          window.__NFV_PREVIEW__ && window.__NFV_PREVIEW__.setState({
+            kind: "archive",
+            fileCount: ${files.length},
+            dirCount: ${dirs.length},
+          });
+        })();
       </script>
     `,
   });

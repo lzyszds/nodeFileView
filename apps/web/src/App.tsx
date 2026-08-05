@@ -13,6 +13,7 @@ import {
   Terminal,
   Trash2,
   Upload,
+  X,
 } from "lucide-react";
 import {
   AuthRequiredError,
@@ -35,7 +36,6 @@ import {
   type MonitorStats,
   type PublicConfig,
 } from "@/api";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -97,6 +97,7 @@ export default function App() {
   const [message, setMessage] = useState<{ type: "ok" | "err"; text: string } | null>(
     null,
   );
+  const [toastVisible, setToastVisible] = useState(false);
 
   const [remoteUrl, setRemoteUrl] = useState("");
   const [useAes, setUseAes] = useState(false);
@@ -135,6 +136,21 @@ export default function App() {
       })
       .finally(() => setAuthReady(true));
   }, []);
+
+  useEffect(() => {
+    if (!message) {
+      setToastVisible(false);
+      return;
+    }
+    setToastVisible(true);
+    const hideMs = message.type === "ok" ? 2800 : 4500;
+    const hideTimer = window.setTimeout(() => setToastVisible(false), hideMs);
+    const clearTimer = window.setTimeout(() => setMessage(null), hideMs + 220);
+    return () => {
+      window.clearTimeout(hideTimer);
+      window.clearTimeout(clearTimer);
+    };
+  }, [message]);
 
   const refreshMonitor = useCallback(async () => {
     const [stats, logs] = await Promise.all([
@@ -565,22 +581,6 @@ export default function App() {
             activeTab === "files" ? "overflow-hidden" : "overflow-y-auto",
           )}
         >
-          {message && (
-            <div className="mb-4">
-              <Alert variant={message.type === "err" ? "destructive" : "default"}>
-                {message.type === "err" ? (
-                  <AlertCircle className="size-4" />
-                ) : (
-                  <CheckCircle2 className="size-4" />
-                )}
-                <AlertTitle>
-                  {message.type === "err" ? "出错" : "成功"}
-                </AlertTitle>
-                <AlertDescription>{message.text}</AlertDescription>
-              </Alert>
-            </div>
-          )}
-
           {activeTab === "files" && (
             <div className="grid h-full min-h-0 gap-5 lg:grid-cols-[1.4fr_0.9fr]">
               <Card className="flex min-h-0 flex-col overflow-hidden">
@@ -1218,6 +1218,54 @@ export default function App() {
           )}
         </main>
       </div>
+
+      {message && (
+        <div
+          className={cn(
+            "pointer-events-none fixed right-5 bottom-5 z-50 w-[min(360px,calc(100vw-2.5rem))]",
+            "transition-all duration-200 ease-out",
+            toastVisible
+              ? "translate-y-0 opacity-100"
+              : "translate-y-2 opacity-0",
+          )}
+          role="status"
+          aria-live="polite"
+        >
+          <div
+            className={cn(
+              "pointer-events-auto flex items-start gap-3 rounded-xl border px-3.5 py-3 shadow-lg backdrop-blur-sm",
+              message.type === "ok"
+                ? "border-emerald-200/80 bg-white/95 text-emerald-900 shadow-emerald-100/80"
+                : "border-rose-200/80 bg-white/95 text-rose-900 shadow-rose-100/80",
+            )}
+          >
+            {message.type === "ok" ? (
+              <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-600" />
+            ) : (
+              <AlertCircle className="mt-0.5 size-4 shrink-0 text-rose-600" />
+            )}
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-semibold">
+                {message.type === "ok" ? "成功" : "出错"}
+              </p>
+              <p className="mt-0.5 text-xs leading-relaxed text-slate-600">
+                {message.text}
+              </p>
+            </div>
+            <button
+              type="button"
+              className="rounded-md p-0.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+              aria-label="关闭"
+              onClick={() => {
+                setToastVisible(false);
+                setMessage(null);
+              }}
+            >
+              <X className="size-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
