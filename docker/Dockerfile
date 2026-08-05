@@ -39,11 +39,11 @@ COPY .env.example ./.env.example
 RUN mkdir -p /app/data/uploads /app/data/cache /app/data/temp
 
 ENV NODE_ENV=production \
-    PORT=8013 \
+    PORT=8012 \
     HOST=0.0.0.0 \
     DATA_DIR=/app/data \
     LIBREOFFICE_PATH=soffice
 
-EXPOSE 8013
+EXPOSE 8012
 VOLUME ["/app/data"]
 CMD ["node", "apps/server/dist/index.js"]

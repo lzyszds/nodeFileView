@@ -69,7 +69,14 @@ async function main() {
   await monitorRoutes(app);
   await previewRoutes(app);
 
-  if (fs.existsSync(config.webDistDir)) {
+  // 生产（或显式开启）才托管前端构建产物；本地 pnpm dev 请用 Vite :5173，
+  // 避免误开 :8012 时加载过期的 apps/web/dist 看到空白页。
+  const serveWebDist =
+    process.env.SERVE_WEB_DIST === "true" ||
+    process.env.SERVE_WEB_DIST === "1" ||
+    process.env.NODE_ENV === "production";
+
+  if (serveWebDist && fs.existsSync(config.webDistDir)) {
     await app.register(fastifyStatic, {
       root: config.webDistDir,
       prefix: "/",
@@ -93,6 +100,28 @@ async function main() {
         return reply.code(404).send({ error: "Not found" });
       }
       return reply.sendFile("index.html");
+    });
+  } else if (!serveWebDist) {
+    app.get("/", async (_request, reply) => {
+      reply.type("text/html; charset=utf-8").send(`<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>nodeFileView · dev</title>
+  <style>
+    body{font-family:system-ui,sans-serif;max-width:40rem;margin:3rem auto;padding:0 1rem;color:#1e293b;line-height:1.5}
+    code{background:#f1f5f9;padding:.1rem .35rem;border-radius:4px}
+    a{color:#4f46e5}
+  </style>
+</head>
+<body>
+  <h1>nodeFileView API（开发模式）</h1>
+  <p>当前 <code>:${config.port}</code> 只提供 API / 预览，不托管前端构建产物。</p>
+  <p>控制台请打开：<a href="http://127.0.0.1:5173/">http://127.0.0.1:5173/</a></p>
+  <p>健康检查：<a href="/health">/health</a></p>
+</body>
+</html>`);
     });
   }
 
