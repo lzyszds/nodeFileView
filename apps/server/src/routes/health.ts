@@ -28,6 +28,7 @@ export async function healthRoutes(app: FastifyInstance): Promise<void> {
     port: config.port,
     baseUrl: config.baseUrl || undefined,
     trustHost: config.trustHost,
+    notTrustHost: config.notTrustHost,
     notTrustHostEnabled: config.notTrustHost.length > 0,
   }));
 

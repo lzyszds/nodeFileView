@@ -411,12 +411,12 @@ export default function App() {
 
   if (authEnabled && !authenticated) {
     return (
-      <div className="relative flex h-screen w-full items-center justify-center overflow-hidden bg-slate-100">
+      <div className="relative flex h-screen w-full items-center justify-center overflow-hidden bg-neutral-100">
         <div
-          className="pointer-events-none absolute inset-0 opacity-60"
+          className="pointer-events-none absolute inset-0 opacity-70"
           style={{
             background:
-              "radial-gradient(ellipse 80% 50% at 50% -20%, #c7d2fe, transparent), radial-gradient(ellipse 60% 40% at 100% 100%, #e2e8f0, transparent)",
+              "radial-gradient(ellipse 80% 50% at 50% -20%, #d4d4d4, transparent), radial-gradient(ellipse 60% 40% at 100% 100%, #e5e5e5, transparent)",
           }}
         />
         <form
@@ -424,7 +424,7 @@ export default function App() {
           className="relative z-10 w-full max-w-sm rounded-2xl border border-slate-200/80 bg-white p-8 shadow-lg shadow-slate-200/50"
         >
           <div className="mb-6 flex flex-col items-center text-center">
-            <div className="mb-3 flex size-12 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-md shadow-indigo-200">
+            <div className="mb-3 flex size-12 items-center justify-center rounded-xl bg-neutral-900 text-white">
               <Lock className="size-5" />
             </div>
             <h1 className="text-lg font-bold tracking-tight text-slate-900">
@@ -458,7 +458,7 @@ export default function App() {
               />
             </div>
             {loginError && (
-              <p className="text-xs text-red-600" role="alert">
+              <p className="text-xs text-neutral-900" role="alert">
                 {loginError}
               </p>
             )}
@@ -479,7 +479,7 @@ export default function App() {
       <aside className="z-30 flex w-64 shrink-0 flex-col border-r border-slate-200/80 bg-white">
         <div className="flex h-14 items-center justify-between border-b border-slate-100 px-5">
           <div className="flex items-center gap-2.5">
-            <div className="flex size-7 items-center justify-center rounded-lg bg-indigo-600 text-xs font-bold text-white shadow-sm shadow-indigo-200">
+            <div className="flex size-7 items-center justify-center rounded-lg bg-neutral-900 text-xs font-bold text-white">
               nF
             </div>
             <div className="flex flex-col">
@@ -492,7 +492,7 @@ export default function App() {
           {authEnabled ? (
             <Lock className="size-3.5 text-slate-400" />
           ) : (
-            <span className="size-1.5 animate-pulse rounded-full bg-emerald-500" />
+            <span className="size-1.5 animate-pulse rounded-full bg-neutral-900" />
           )}
         </div>
 
@@ -515,7 +515,7 @@ export default function App() {
                       className={cn(
                         "flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs transition",
                         active
-                          ? "bg-indigo-50 font-semibold text-indigo-700 shadow-xs"
+                          ? "bg-neutral-900 font-semibold text-white shadow-xs"
                           : "text-slate-600 hover:bg-slate-50",
                       )}
                     >
@@ -539,7 +539,7 @@ export default function App() {
         <div className="space-y-2 border-t border-slate-100 p-4 text-[11px] text-slate-500">
           <div className="flex items-center justify-between">
             <span>{t("nav.engineStatus")}</span>
-            <span className="font-medium text-emerald-600">{t("common.ready")}</span>
+            <span className="font-medium text-neutral-900">{t("common.ready")}</span>
           </div>
           <div className="flex items-center justify-between">
             <span>{t("nav.cacheHit")}</span>
@@ -608,7 +608,7 @@ export default function App() {
           )}
         >
           {activeTab === "home" && (
-            <HomePage onGo={(tab) => setActiveTab(tab)} />
+            <HomePage config={config} onGo={(tab) => setActiveTab(tab)} />
           )}
 
           {activeTab === "files" && (
@@ -1166,7 +1166,7 @@ export default function App() {
                   label={t("monitor.hitRate")}
                   value={monitorStats?.cacheHitRateText || "—"}
                   hint={`hit ${monitorStats?.cacheHits ?? 0} / miss ${monitorStats?.cacheMisses ?? 0}`}
-                  valueClass="text-emerald-600"
+                  valueClass="text-neutral-900"
                 />
                 <StatCard
                   label={t("monitor.avgConvert")}
@@ -1174,7 +1174,7 @@ export default function App() {
                   hint={t("monitor.convertHint", {
                     count: monitorStats?.convertTotal ?? 0,
                   })}
-                  valueClass="text-indigo-600"
+                  valueClass="text-neutral-900"
                 />
                 <StatCard
                   label={t("monitor.convertErrors")}
@@ -1188,7 +1188,7 @@ export default function App() {
                         })
                       : "—"
                   }
-                  valueClass="text-rose-600"
+                  valueClass="text-neutral-900"
                 />
               </div>
 
@@ -1299,10 +1299,10 @@ export default function App() {
                                 className={cn(
                                   "text-xs font-medium",
                                   log.level === "error"
-                                    ? "text-rose-600"
+                                    ? "text-neutral-900"
                                     : log.level === "warn"
-                                      ? "text-amber-600"
-                                      : "text-emerald-700",
+                                      ? "text-neutral-600"
+                                      : "text-neutral-700",
                                 )}
                               >
                                 {log.level}
@@ -1336,14 +1336,14 @@ export default function App() {
             className={cn(
               "pointer-events-auto flex items-start gap-3 rounded-xl border px-3.5 py-3 shadow-lg backdrop-blur-sm",
               message.type === "ok"
-                ? "border-emerald-200/80 bg-white/95 text-emerald-900 shadow-emerald-100/80"
-                : "border-rose-200/80 bg-white/95 text-rose-900 shadow-rose-100/80",
+                ? "border-neutral-900 bg-white/95 text-neutral-900 shadow-neutral-200/80"
+                : "border-neutral-400 bg-white/95 text-neutral-900 shadow-neutral-200/80",
             )}
           >
             {message.type === "ok" ? (
-              <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-600" />
+              <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-neutral-900" />
             ) : (
-              <AlertCircle className="mt-0.5 size-4 shrink-0 text-rose-600" />
+              <AlertCircle className="mt-0.5 size-4 shrink-0 text-neutral-900" />
             )}
             <div className="min-w-0 flex-1">
               <p className="text-xs font-semibold">
@@ -1387,7 +1387,7 @@ function LanguageSelect(props: {
       {!props.compact && <span className="shrink-0">{props.t("common.language")}</span>}
       <select
         className={cn(
-          "rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700 outline-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100",
+          "rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700 outline-none focus:border-neutral-900 focus:ring-2 focus:ring-neutral-200",
           props.compact ? "max-w-[140px]" : "w-full",
         )}
         value={props.locale}

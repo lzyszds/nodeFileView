@@ -14,6 +14,7 @@ export interface PublicConfig {
   port?: number;
   baseUrl?: string;
   trustHost?: string[];
+  notTrustHost?: string[];
   notTrustHostEnabled?: boolean;
 }
 

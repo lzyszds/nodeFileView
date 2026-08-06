@@ -4,6 +4,7 @@
 # 用法：
 #   chmod +x docker/run.sh
 #   BASIC_AUTH_PASS='强密码' ./docker/run.sh
+#   HOST_PORT=8013 BASIC_AUTH_PASS='强密码' ./docker/run.sh   # 宿主机改端口
 #
 # Apple Silicon 建议直接拉 GitHub Actions 打好的 amd64 镜像：
 #   IMAGE=ghcr.io/<owner>/nodefileview:1.0.0 ./docker/run.sh
@@ -22,8 +23,8 @@ HOST_PORT="${HOST_PORT:-8012}"
 BASIC_AUTH_USER="${BASIC_AUTH_USER:-admin}"
 BASIC_AUTH_PASS="${BASIC_AUTH_PASS:-change-me-strong-password}"
 BASE_URL="${BASE_URL:-https://preview.qqlink.info}"
-TRUST_HOST="${TRUST_HOST:-*.my-imcloud.com,*.chat.qqlink.*}"
-NOT_TRUST_HOST="${NOT_TRUST_HOST:-localhost,127.0.0.1,0.0.0.0,::1,169.254.*,192.168.*,10.*,172.16.*,172.17.*,172.18.*,172.19.*,172.20.*,172.21.*,172.22.*,172.23.*,172.24.*,172.25.*,172.26.*,172.27.*,172.28.*,172.29.*,172.30.*,172.31.*}"
+TRUST_HOST="${TRUST_HOST:-*.my-imcloud.com,*qqlink.*}"
+NOT_TRUST_HOST="${NOT_TRUST_HOST:-localhost,127.0.0.1,0.0.0.0,169.254.*,192.168.*,10.*,172.16.*,172.17.*,172.18.*,172.19.*,172.20.*,172.21.*,172.22.*,172.23.*,172.24.*,172.25.*,172.26.*,172.27.*,172.28.*,172.29.*,172.30.*,172.31.*}"
 
 mkdir -p "$ROOT/data"
 
