@@ -152,40 +152,50 @@ invoke("search", { keyword: "合同" });
 
 ## 5.1 转发 `forward`（DOCX / Excel / 文本 / Markdown）
 
-页内有「转发」按钮；同时通过 bridge 透出同名方法，宿主可主动调用或监听用户点击。
+页内有「转发」按钮；同时通过 bridge 透出同名方法。点击或 `invoke("forward")` 时，会把**当前文件二进制**回传给宿主（含编辑后的内容）。
 
-- `actionId`: `forward`
-- `kind`: `method`
-- 点击或 `invoke("forward")` 时：
-  1. 预览页 `emit` / `postMessage` 类型为 `forward` 的事件
-  2. `action-result` 的 `result` 为同一份 payload
-
-payload 示例：
+payload：
 
 ```ts
-// Markdown / 文本
-{ kind: "markdown" | "text", title: string, dirty: boolean, content: string, language?: string }
-
-// DOCX / Excel
-{ kind: "docx" | "excel", title: string, fileUrl: string, dirty: boolean, sheet?: string }
+{
+  kind: "docx" | "excel" | "text" | "markdown",
+  title: string,
+  fileName: string,
+  mimeType: string,
+  dirty: boolean,
+  byteLength: number,
+  data: ArrayBuffer,   // 推荐：postMessage 结构化克隆可直接拿到
+  base64: string,      // 备用：JSON/字符串 IPC 通道用
+  fileUrl?: string,    // 原预览地址（DOCX/Excel）
+  sheet?: string,      // Excel 当前表
+  language?: string,   // 文本语言
+}
 ```
 
-宿主侧：
+宿主示例：
 
 ```js
 window.addEventListener("message", (event) => {
   if (event.data?.source !== "nodeFileViewPreview") return;
-  if (event.data.type === "forward") {
-    // 用户点了转发，或宿主 invoke 后也会先走 action-invoked / action-result
-    console.log(event.data.detail);
-  }
+  if (event.data.type !== "forward") return;
+
+  const { fileName, mimeType, data, base64 } = event.data.detail;
+
+  // 方式 A：ArrayBuffer → Blob / FormData
+  const blob = new Blob([data], { type: mimeType });
+  const form = new FormData();
+  form.append("file", blob, fileName);
+  // await fetch("/your-upload", { method: "POST", body: form });
+
+  // 方式 B：base64（WebView 只支持 JSON 时）
+  // const bin = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
 });
 
 // 宿主主动触发
 invoke("forward");
 ```
 
-> 编辑 / 保存仍为页内能力，不通过 bridge 外透。
+> 编辑 / 保存仍为页内能力，不通过 bridge 外透。转发会带上当前内容的二进制（已修改则导出编辑后文件）。
 
 ---
 

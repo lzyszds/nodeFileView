@@ -328,15 +328,33 @@ export async function renderTextViewer(opts: {
           window.__NFV_PREVIEW__?.registerButtonAction(item[0], { label: item[1] });
         });
         function doForward() {
+          const text = editing ? editor.value : content;
+          const isDirty = dirty || (editing && editor.value !== content);
+          const name = fileTitle || "file.txt";
+          const bytes = new TextEncoder().encode(text);
+          const data = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
           const detail = {
             kind: "text",
             title: fileTitle,
+            fileName: name,
             language: ${JSON.stringify(lang)},
-            dirty: dirty || (editing && editor.value !== content),
-            content: editing ? editor.value : content,
+            mimeType: "text/plain;charset=utf-8",
+            dirty: isDirty,
+            byteLength: data.byteLength,
+            data: data,
+            base64: bufferToBase64(data),
           };
           window.__NFV_PREVIEW__?.emit("forward", detail);
           return detail;
+        }
+        function bufferToBase64(buf) {
+          const bytes = new Uint8Array(buf);
+          let binary = "";
+          const chunk = 0x8000;
+          for (let i = 0; i < bytes.length; i += chunk) {
+            binary += String.fromCharCode.apply(null, bytes.subarray(i, Math.min(i + chunk, bytes.length)));
+          }
+          return btoa(binary);
         }
         window.__NFV_PREVIEW__?.registerAction(
           "forward",

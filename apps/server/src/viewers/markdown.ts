@@ -131,14 +131,32 @@ export function renderMarkdownViewer(opts: {
         const editNotice = document.getElementById("editNotice");
 
         function doForward() {
+          const text = editing ? editor.value : content;
+          const isDirty = dirty || (editing && editor.value !== content);
+          const name = fileTitle && /\\.md$/i.test(fileTitle) ? fileTitle : (fileTitle || "document") + ".md";
+          const bytes = new TextEncoder().encode(text);
+          const data = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
           const detail = {
             kind: "markdown",
             title: fileTitle,
-            dirty: dirty || (editing && editor.value !== content),
-            content: editing ? editor.value : content,
+            fileName: name,
+            mimeType: "text/markdown;charset=utf-8",
+            dirty: isDirty,
+            byteLength: data.byteLength,
+            data: data,
+            base64: bufferToBase64(data),
           };
           window.__NFV_PREVIEW__?.emit("forward", detail);
           return detail;
+        }
+        function bufferToBase64(buf) {
+          const bytes = new Uint8Array(buf);
+          let binary = "";
+          const chunk = 0x8000;
+          for (let i = 0; i < bytes.length; i += chunk) {
+            binary += String.fromCharCode.apply(null, bytes.subarray(i, Math.min(i + chunk, bytes.length)));
+          }
+          return btoa(binary);
         }
         window.__NFV_PREVIEW__?.registerAction(
           "forward",

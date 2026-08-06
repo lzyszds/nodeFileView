@@ -404,19 +404,13 @@ export function renderDocxViewer(opts: {
             window.__NFV_PREVIEW__?.registerButtonAction(item[0], { label: item[1] });
           });
           function doForward() {
-            const detail = {
-              kind: "docx",
-              title: ${JSON.stringify(opts.title)},
-              fileUrl: fileUrl,
-              dirty: dirty,
-            };
-            window.__NFV_PREVIEW__?.emit("forward", detail);
-            return detail;
+            return Promise.reject(new Error("forward not ready"));
           }
+          let runForward = doForward;
           window.__NFV_PREVIEW__?.registerAction(
             "forward",
             { label: UI.forward, kind: "method" },
-            doForward,
+            function () { return runForward(); },
           );
           let scale = 1;
           let editing = false;
@@ -729,34 +723,73 @@ export function renderDocxViewer(opts: {
             return parts.join('<div style="page-break-after:always"></div>');
           }
 
+          async function buildDocxBytes() {
+            if (!dirty && originalBuffer) {
+              return {
+                data: originalBuffer instanceof ArrayBuffer
+                  ? originalBuffer.slice(0)
+                  : (originalBuffer.buffer
+                    ? originalBuffer.buffer.slice(originalBuffer.byteOffset, originalBuffer.byteOffset + originalBuffer.byteLength)
+                    : await new Response(originalBuffer).arrayBuffer()),
+                fileName: downloadBase + ".docx",
+              };
+            }
+            const html = collectHtml();
+            const res = await fetch("/api/docx/export", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                html: html,
+                title: downloadBase,
+                fileName: downloadBase + "-edited.docx",
+              }),
+            });
+            if (!res.ok) {
+              const err = await res.json().catch(function () { return {}; });
+              throw new Error(err.error || ("导出失败 HTTP " + res.status));
+            }
+            return {
+              data: await res.arrayBuffer(),
+              fileName: downloadBase + (dirty ? "-edited.docx" : ".docx"),
+            };
+          }
+
+          function bufferToBase64(buf) {
+            const bytes = new Uint8Array(buf);
+            let binary = "";
+            const chunk = 0x8000;
+            for (let i = 0; i < bytes.length; i += chunk) {
+              binary += String.fromCharCode.apply(null, bytes.subarray(i, Math.min(i + chunk, bytes.length)));
+            }
+            return btoa(binary);
+          }
+
+          runForward = async function () {
+            const built = await buildDocxBytes();
+            const detail = {
+              kind: "docx",
+              title: ${JSON.stringify(opts.title)},
+              fileName: built.fileName,
+              mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+              fileUrl: fileUrl,
+              dirty: dirty,
+              byteLength: built.data.byteLength,
+              data: built.data,
+              base64: bufferToBase64(built.data),
+            };
+            window.__NFV_PREVIEW__?.emit("forward", detail);
+            return detail;
+          };
+
           async function saveDocx() {
             saveBtn.disabled = true;
             saveBtn.textContent = "导出中…";
             try {
-              // If never edited, download original bytes for best fidelity
-              if (!dirty && originalBuffer) {
-                const blob = new Blob([originalBuffer], {
-                  type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                });
-                triggerDownload(blob, downloadBase + ".docx");
-                return;
-              }
-              const html = collectHtml();
-              const res = await fetch("/api/docx/export", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  html: html,
-                  title: downloadBase,
-                  fileName: downloadBase + "-edited.docx",
-                }),
+              const built = await buildDocxBytes();
+              const blob = new Blob([built.data], {
+                type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
               });
-              if (!res.ok) {
-                const err = await res.json().catch(function () { return {}; });
-                throw new Error(err.error || ("导出失败 HTTP " + res.status));
-              }
-              const blob = await res.blob();
-              triggerDownload(blob, downloadBase + "-edited.docx");
+              triggerDownload(blob, built.fileName);
             } catch (err) {
               alert(err && err.message ? err.message : String(err));
             } finally {
@@ -836,7 +869,11 @@ export function renderDocxViewer(opts: {
           document.getElementById("refreshOutline").onclick = buildOutline;
           editBtn.onclick = function () { setEditing(!editing); };
           saveBtn.onclick = function () { saveDocx(); };
-          forwardBtn.onclick = function () { doForward(); };
+          forwardBtn.onclick = function () {
+            Promise.resolve(runForward()).catch(function (err) {
+              alert("转发失败：" + (err && err.message ? err.message : String(err)));
+            });
+          };
           editToolbar.querySelectorAll("[data-cmd]").forEach(function (btn) {
             btn.addEventListener("click", function () {
               document.execCommand(btn.getAttribute("data-cmd"), false);

@@ -296,21 +296,14 @@ export function renderExcelViewer(opts: {
             window.__NFV_PREVIEW__?.registerButtonAction(item[0], { label: item[1] });
           });
           function doForward() {
-            if (activeEditor) commitCellEditor(true);
-            const detail = {
-              kind: "excel",
-              title: fileTitle,
-              fileUrl: fileUrl,
-              sheet: activeSheet,
-              dirty: dirty,
-            };
-            window.__NFV_PREVIEW__?.emit("forward", detail);
-            return detail;
+            // defined early; real impl assigned after workbook loads helpers below
+            return Promise.reject(new Error("forward not ready"));
           }
+          let runForward = doForward;
           window.__NFV_PREVIEW__?.registerAction(
             "forward",
             { label: UI.forward, kind: "method" },
-            doForward,
+            function () { return runForward(); },
           );
           const MAX_ROWS = 800;
           const MAX_COLS = 60;
@@ -927,7 +920,80 @@ export function renderExcelViewer(opts: {
             if (e.key === "Enter") applySearch(searchBox.value);
           });
           editBtn.onclick = function () { setEditing(!editing); };
-          forwardBtn.onclick = function () { doForward(); };
+          forwardBtn.onclick = function () {
+            Promise.resolve(runForward()).catch(function (err) {
+              alert("转发失败：" + (err && err.message ? err.message : String(err)));
+            });
+          };
+          function bufferToBase64(buf) {
+            var bytes = new Uint8Array(buf);
+            var binary = "";
+            var chunk = 0x8000;
+            for (var i = 0; i < bytes.length; i += chunk) {
+              binary += String.fromCharCode.apply(null, bytes.subarray(i, Math.min(i + chunk, bytes.length)));
+            }
+            return btoa(binary);
+          }
+          function toArrayBuffer(source) {
+            if (!source) return new ArrayBuffer(0);
+            if (source instanceof ArrayBuffer) return source.slice(0);
+            if (ArrayBuffer.isView(source)) {
+              return source.buffer.slice(source.byteOffset, source.byteOffset + source.byteLength);
+            }
+            return new Uint8Array(source).buffer;
+          }
+          function resolveExcelExport() {
+            var lower = String(fileTitle || "workbook.xlsx").toLowerCase();
+            var bookType = "xlsx";
+            var mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+            var outName = fileTitle || "workbook.xlsx";
+            if (lower.endsWith(".csv")) {
+              bookType = "csv";
+              mime = "text/csv;charset=utf-8";
+            } else if (lower.endsWith(".tsv") || lower.endsWith(".txt")) {
+              bookType = "txt";
+              mime = "text/tab-separated-values;charset=utf-8";
+            } else if (lower.endsWith(".xls")) {
+              bookType = "xls";
+              mime = "application/vnd.ms-excel";
+            } else if (!lower.endsWith(".xlsx")) {
+              outName = outName.replace(/\\.[^.]+$/, "") + "-edited.xlsx";
+            } else if (dirty) {
+              outName = outName.replace(/\\.xlsx$/i, "") + "-edited.xlsx";
+            }
+            return { bookType: bookType, mime: mime, outName: outName };
+          }
+          runForward = async function () {
+            if (activeEditor) commitCellEditor(true);
+            var meta = resolveExcelExport();
+            var data;
+            if (!dirty) {
+              if (!fileBuffer) {
+                var res = await fetch(fileUrl);
+                if (!res.ok) throw new Error("下载失败 HTTP " + res.status);
+                data = await res.arrayBuffer();
+              } else {
+                data = toArrayBuffer(fileBuffer);
+              }
+            } else {
+              var out = XLSX.write(workbook, { bookType: meta.bookType, type: "array" });
+              data = toArrayBuffer(out);
+            }
+            var detail = {
+              kind: "excel",
+              title: fileTitle,
+              fileName: meta.outName,
+              mimeType: meta.mime,
+              fileUrl: fileUrl,
+              sheet: activeSheet,
+              dirty: dirty,
+              byteLength: data.byteLength,
+              data: data,
+              base64: bufferToBase64(data),
+            };
+            window.__NFV_PREVIEW__?.emit("forward", detail);
+            return detail;
+          };
           saveBtn.onclick = function () {
             if (activeEditor) commitCellEditor(true);
             function triggerDownload(blob, name) {
@@ -949,26 +1015,9 @@ export function renderExcelViewer(opts: {
               return;
             }
             try {
-              var lower = String(fileTitle || "workbook.xlsx").toLowerCase();
-              var bookType = "xlsx";
-              var mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-              var outName = fileTitle || "workbook.xlsx";
-              if (lower.endsWith(".csv")) {
-                bookType = "csv";
-                mime = "text/csv;charset=utf-8";
-              } else if (lower.endsWith(".tsv") || lower.endsWith(".txt")) {
-                bookType = "txt";
-                mime = "text/tab-separated-values;charset=utf-8";
-              } else if (lower.endsWith(".xls")) {
-                bookType = "xls";
-                mime = "application/vnd.ms-excel";
-              } else if (!lower.endsWith(".xlsx")) {
-                outName = outName.replace(/\\.[^.]+$/, "") + "-edited.xlsx";
-              } else {
-                outName = outName.replace(/\\.xlsx$/i, "") + "-edited.xlsx";
-              }
-              var out = XLSX.write(workbook, { bookType: bookType, type: "array" });
-              triggerDownload(new Blob([out], { type: mime }), outName);
+              var meta = resolveExcelExport();
+              var out = XLSX.write(workbook, { bookType: meta.bookType, type: "array" });
+              triggerDownload(new Blob([out], { type: meta.mime }), meta.outName);
             } catch (err) {
               alert("导出失败：" + (err && err.message ? err.message : String(err)));
             }
