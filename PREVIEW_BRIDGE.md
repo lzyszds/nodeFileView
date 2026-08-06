@@ -150,6 +150,45 @@ invoke("search", { keyword: "合同" });
 
 ---
 
+## 5.1 转发 `forward`（DOCX / Excel / 文本 / Markdown）
+
+页内有「转发」按钮；同时通过 bridge 透出同名方法，宿主可主动调用或监听用户点击。
+
+- `actionId`: `forward`
+- `kind`: `method`
+- 点击或 `invoke("forward")` 时：
+  1. 预览页 `emit` / `postMessage` 类型为 `forward` 的事件
+  2. `action-result` 的 `result` 为同一份 payload
+
+payload 示例：
+
+```ts
+// Markdown / 文本
+{ kind: "markdown" | "text", title: string, dirty: boolean, content: string, language?: string }
+
+// DOCX / Excel
+{ kind: "docx" | "excel", title: string, fileUrl: string, dirty: boolean, sheet?: string }
+```
+
+宿主侧：
+
+```js
+window.addEventListener("message", (event) => {
+  if (event.data?.source !== "nodeFileViewPreview") return;
+  if (event.data.type === "forward") {
+    // 用户点了转发，或宿主 invoke 后也会先走 action-invoked / action-result
+    console.log(event.data.detail);
+  }
+});
+
+// 宿主主动触发
+invoke("forward");
+```
+
+> 编辑 / 保存仍为页内能力，不通过 bridge 外透。
+
+---
+
 ## 6. 预览器动作清单（当前实现）
 
 不同文件类型会注册不同的动作。预览页会把可用动作通过 `ready/actions-change` 下发给宿主，你应以 `actions` 为准，而不要写死。
@@ -159,11 +198,12 @@ invoke("search", { keyword: "合同" });
 - `pdf`：`zoomIn` `zoomOut` `fitWidth` `prevPage` `nextPage` `fsBtn` `toggleThumbs`
 - `image`：`zoomIn` `zoomOut` `rotateR` `flipH` `flipV` `fit` `reset` `download`
 - `media`：`pipBtn` `fsBtn` `dlBtn`
-- `text`：`zoomIn` `zoomOut` `copyBtn` `wrapBtn`
+- `text`：`zoomIn` `zoomOut` `copyBtn` `wrapBtn` + **`forward`**
 - `html`：`reloadBtn` `sourceBtn` `openBtn`
 - `pptx`：`prevBtn` `nextBtn` `fsBtn`
-- `docx`：`toggleSidebar` `refreshOutline` `editBtn` `downloadBtn` `zoomIn` `zoomOut` `fitWidth` `fitPage` `printBtn`
-- `excel`：以上缩放/下载类 + `search`（带入参）
+- `docx`：`toggleSidebar` `refreshOutline` `zoomIn` `zoomOut` `fitWidth` `fitPage` `printBtn` + **`forward`**
+- `excel`：缩放/冻结等 + `search` + **`forward`**
+- `markdown`：**`forward`**
 
 ---
 

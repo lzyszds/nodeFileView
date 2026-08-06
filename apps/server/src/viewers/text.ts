@@ -171,14 +171,6 @@ export async function renderTextViewer(opts: {
     title: opts.title,
     ext,
     engine: "Shiki · github-light",
-    headerActions: `
-      <span class="uv-meta" id="langLabel">${escapeHtml(lang)} · UTF-8 · ${lines} lines</span>
-      <button type="button" id="zoomOut" title="${escapeHtml(ui.zoomOut)}">−</button>
-      <span class="uv-meta" id="zoomLabel" style="min-width:3em;text-align:center">100%</span>
-      <button type="button" id="zoomIn" title="${escapeHtml(ui.zoomIn)}">+</button>
-      <button type="button" id="copyBtn">复制全部</button>
-      <button type="button" id="wrapBtn">取消换行</button>
-    `,
     head: `
       <style>
         .viewer {
@@ -255,6 +247,24 @@ export async function renderTextViewer(opts: {
         }
         .code-body.nowrap .line-inner { white-space: pre; word-break: normal; overflow-wrap: normal; }
         .line-inner span { white-space: inherit !important; word-break: inherit !important; overflow-wrap: inherit !important; }
+        #textEditor {
+          display: none;
+          flex: 1;
+          min-height: 0;
+          width: 100%;
+          border: 0;
+          outline: none;
+          resize: none;
+          padding: 12px 16px;
+          box-sizing: border-box;
+          font-family: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+          font-size: var(--code-fs, 13px);
+          line-height: 1.55;
+          color: #0f172a;
+          background: #fff;
+        }
+        body.text-editing #codeBody { display: none; }
+        body.text-editing #textEditor { display: block; }
         .notice {
           margin: 0;
           padding: 8px 12px;
@@ -264,27 +274,51 @@ export async function renderTextViewer(opts: {
           font-size: 12px;
           flex-shrink: 0;
         }
+        .nfv-local-bar .uv-meta { color: var(--muted); font-size: 12px; }
       </style>
     `,
     body: `
       ${watermarkLayer(opts.watermark)}
       <div class="viewer">
+        <div class="nfv-local-bar">
+          <span class="meta" id="langLabel">${escapeHtml(lang)} · UTF-8 · ${lines} lines</span>
+          <button type="button" id="editBtn">${escapeHtml(ui.edit)}</button>
+          <button type="button" id="saveBtn" class="primary">${escapeHtml(ui.save)}</button>
+          <button type="button" id="forwardBtn">${escapeHtml(ui.forward)}</button>
+          <button type="button" id="zoomOut" title="${escapeHtml(ui.zoomOut)}">−</button>
+          <span class="uv-meta" id="zoomLabel" style="min-width:3em;text-align:center">100%</span>
+          <button type="button" id="zoomIn" title="${escapeHtml(ui.zoomIn)}">+</button>
+          <button type="button" id="copyBtn">复制全部</button>
+          <button type="button" id="wrapBtn">取消换行</button>
+        </div>
         ${opts.truncated ? `<div class="notice">文件较大，仅展示前部分内容</div>` : ""}
+        <div class="notice" id="editNotice" hidden></div>
         <div class="code-shell">
           <div class="code-card">
             <div class="code-body" id="codeBody">
               <table class="code-table"><tbody>${renderedRows}</tbody></table>
             </div>
+            <textarea id="textEditor" spellcheck="false" aria-label="文本编辑"></textarea>
           </div>
         </div>
       </div>
       <script>
         const UI = ${JSON.stringify(ui)};
-        const raw = ${JSON.stringify(opts.content)};
+        let content = ${JSON.stringify(opts.content)};
+        const fileTitle = ${JSON.stringify(opts.title)};
         let zoom = 1;
         let wrap = true;
+        let editing = false;
+        let dirty = false;
         const body = document.getElementById("codeBody");
+        const editor = document.getElementById("textEditor");
         const zoomLabel = document.getElementById("zoomLabel");
+        const editBtn = document.getElementById("editBtn");
+        const saveBtn = document.getElementById("saveBtn");
+        const forwardBtn = document.getElementById("forwardBtn");
+        const editNotice = document.getElementById("editNotice");
+        const langLabel = document.getElementById("langLabel");
+        // 缩放/复制等仍可给宿主；编辑/保存仅页内，不注册 bridge
         [
           ["zoomOut", UI.zoomOut],
           ["zoomIn", UI.zoomIn],
@@ -293,18 +327,101 @@ export async function renderTextViewer(opts: {
         ].forEach(function (item) {
           window.__NFV_PREVIEW__?.registerButtonAction(item[0], { label: item[1] });
         });
-        window.__NFV_PREVIEW__?.setState({
-          kind: "text",
-          language: ${JSON.stringify(lang)},
-          lines: ${lines},
-        });
+        function doForward() {
+          const detail = {
+            kind: "text",
+            title: fileTitle,
+            language: ${JSON.stringify(lang)},
+            dirty: dirty || (editing && editor.value !== content),
+            content: editing ? editor.value : content,
+          };
+          window.__NFV_PREVIEW__?.emit("forward", detail);
+          return detail;
+        }
+        window.__NFV_PREVIEW__?.registerAction(
+          "forward",
+          { label: UI.forward, kind: "method" },
+          doForward,
+        );
         function applyZoom() {
-          body.style.setProperty("--code-fs", (13 * zoom) + "px");
+          const fs = (13 * zoom) + "px";
+          body.style.setProperty("--code-fs", fs);
+          editor.style.fontSize = fs;
           zoomLabel.textContent = Math.round(zoom * 100) + "%";
         }
+        function escapeText(s) {
+          return String(s)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;");
+        }
+        function renderPlain(text) {
+          const linesArr = String(text).split(/\\r?\\n/);
+          const rows = linesArr.map(function (line, idx) {
+            return '<tr><td class="ln">' + (idx + 1) + '</td><td class="lc"><div class="line-inner">' +
+              (escapeText(line) || "&nbsp;") + "</div></td></tr>";
+          }).join("");
+          body.innerHTML = '<table class="code-table"><tbody>' + rows + "</tbody></table>";
+          if (langLabel) {
+            langLabel.textContent = ${JSON.stringify(lang)} + " · UTF-8 · " + linesArr.length + " lines";
+          }
+        }
+        function setEditing(on) {
+          if (on) {
+            const savedTop = body.scrollTop;
+            const savedMax = Math.max(1, body.scrollHeight - body.clientHeight);
+            const ratio = savedTop / savedMax;
+            editor.value = content;
+            editing = true;
+            document.body.classList.add("text-editing");
+            editBtn.textContent = UI.doneEdit;
+            editBtn.classList.add("active");
+            editNotice.hidden = false;
+            editNotice.textContent = "编辑中：改完点「完成编辑」或直接「保存」下载。";
+            editor.focus({ preventScroll: true });
+            requestAnimationFrame(function () {
+              const maxE = Math.max(1, editor.scrollHeight - editor.clientHeight);
+              editor.scrollTop = Math.round(ratio * maxE);
+            });
+          } else {
+            const savedTop = editor.scrollTop;
+            const savedMax = Math.max(1, editor.scrollHeight - editor.clientHeight);
+            const ratio = savedTop / savedMax;
+            const next = editor.value;
+            if (next !== content) dirty = true;
+            content = next;
+            editing = false;
+            document.body.classList.remove("text-editing");
+            editBtn.textContent = UI.edit;
+            editBtn.classList.remove("active");
+            editNotice.hidden = !dirty;
+            if (dirty) editNotice.textContent = "已修改，点「保存」下载文件。";
+            renderPlain(content);
+            requestAnimationFrame(function () {
+              const maxB = Math.max(1, body.scrollHeight - body.clientHeight);
+              body.scrollTop = Math.round(ratio * maxB);
+            });
+          }
+        }
+        function saveDownload() {
+          if (editing) {
+            const next = editor.value;
+            if (next !== content) dirty = true;
+            content = next;
+          }
+          const a = document.createElement("a");
+          a.href = URL.createObjectURL(new Blob([content], { type: "text/plain;charset=utf-8" }));
+          a.download = fileTitle || "file.txt";
+          a.click();
+          setTimeout(function () { URL.revokeObjectURL(a.href); }, 800);
+        }
+        editBtn.onclick = function () { setEditing(!editing); };
+        saveBtn.onclick = function () { saveDownload(); };
+        forwardBtn.onclick = function () { doForward(); };
         document.getElementById("copyBtn").onclick = async function () {
+          const text = editing ? editor.value : content;
           try {
-            await navigator.clipboard.writeText(raw);
+            await navigator.clipboard.writeText(text);
             this.textContent = "已复制";
             const btn = this;
             setTimeout(function () { btn.textContent = "复制全部"; }, 1200);

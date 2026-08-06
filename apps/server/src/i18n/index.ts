@@ -171,6 +171,8 @@ export function previewUi(locale: Locale = currentLocale()): Record<string, stri
     "preview.nextPage",
     "preview.fullscreen",
     "preview.download",
+    "preview.save",
+    "preview.forward",
     "preview.print",
     "preview.edit",
     "preview.doneEdit",

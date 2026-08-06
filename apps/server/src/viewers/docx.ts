@@ -44,8 +44,48 @@ export function renderDocxViewer(opts: {
           box-shadow: 0 1px 0 rgba(0,0,0,.04);
           display: none !important;
         }
+        .nfv-local-bar {
+          position: fixed !important;
+          top: 0 !important;
+          left: 0 !important;
+          right: 0 !important;
+          z-index: 60 !important;
+          height: 48px;
+          box-sizing: border-box;
+          background: #fff !important;
+          border-bottom: 1px solid var(--word-border) !important;
+        }
+        .nfv-local-bar button {
+          background: #fff;
+          color: var(--word-text);
+          border: 1px solid var(--word-border);
+          border-radius: 4px;
+          padding: 6px 10px;
+          font-size: 13px;
+          cursor: pointer;
+        }
+        .nfv-local-bar button:hover {
+          background: #eff6fc;
+          border-color: #c7e0f4;
+          color: var(--word-accent);
+        }
+        .nfv-local-bar button.active {
+          background: #deecf9;
+          border-color: #b4d6f0;
+          color: var(--word-accent);
+        }
+        .nfv-local-bar button.primary {
+          background: var(--word-accent);
+          border-color: var(--word-accent);
+          color: #fff;
+        }
+        .nfv-local-bar button.primary:hover {
+          filter: brightness(0.95);
+          color: #fff;
+        }
+        .nfv-local-bar button:disabled { opacity: .45; cursor: not-allowed; }
         .topbar h1 { display: none !important; }
-        .topbar .meta { color: var(--word-muted); font-size: 12px; }
+        .topbar .meta, .nfv-local-bar .meta { color: var(--word-muted); font-size: 12px; }
         .topbar button, .topbar .btn, .toolbar button {
           background: #fff;
           color: var(--word-text);
@@ -72,7 +112,10 @@ export function renderDocxViewer(opts: {
         .sep { width: 1px; height: 20px; background: var(--word-border); margin: 0 4px; }
         .shell {
           position: fixed !important;
-          inset: 0 !important;
+          top: 48px !important;
+          left: 0 !important;
+          right: 0 !important;
+          bottom: 0 !important;
           width: auto !important;
           height: auto !important;
           max-width: none !important;
@@ -277,15 +320,18 @@ export function renderDocxViewer(opts: {
       </style>
     `,
     body: `
+      <div class="nfv-local-bar">
+        <button type="button" id="toggleSidebar" title="${escapeHtml(ui.toc)}">${escapeHtml(ui.toc)}</button>
+        <span class="meta" id="pageMeta"></span>
+        <button type="button" id="editBtn">${escapeHtml(ui.edit)}</button>
+        <button type="button" id="saveBtn" class="primary" disabled>${escapeHtml(ui.save)}</button>
+        <button type="button" id="forwardBtn">${escapeHtml(ui.forward)}</button>
+      </div>
       <div class="topbar">
         <div style="display:flex;align-items:center;gap:12px;min-width:0;flex:1">
-          <button type="button" id="toggleSidebar" title="${escapeHtml(ui.toc)}">${escapeHtml(ui.toc)}</button>
-          <span class="meta" id="pageMeta"></span>
+          <span class="meta"></span>
         </div>
         <div class="actions">
-          <button type="button" id="editBtn">${escapeHtml(ui.edit)}</button>
-          <button type="button" id="downloadBtn" disabled>${escapeHtml(ui.download)} DOCX</button>
-          <span class="sep"></span>
           <button type="button" id="zoomOut" title="${escapeHtml(ui.zoomOut)}">−</button>
           <button type="button" id="zoomLabel" class="active" style="min-width:64px">100%</button>
           <button type="button" id="zoomIn" title="${escapeHtml(ui.zoomIn)}">+</button>
@@ -321,7 +367,7 @@ export function renderDocxViewer(opts: {
             <span class="sep"></span>
             <button type="button" data-cmd="undo">撤销</button>
             <button type="button" data-cmd="redo">重做</button>
-            <span class="hint">编辑后可下载新的 DOCX（版式会尽量保留，复杂对象可能简化）</span>
+            <span class="hint">编辑后点「保存」下载 DOCX（版式会尽量保留，复杂对象可能简化）</span>
           </div>
           <div class="viewer" id="viewer">
             <div id="status">${escapeHtml(ui.loadingDoc)}</div>
@@ -343,13 +389,12 @@ export function renderDocxViewer(opts: {
           const outlineEl = document.getElementById("outline");
           const shell = document.getElementById("shell");
           const editBtn = document.getElementById("editBtn");
-          const downloadBtn = document.getElementById("downloadBtn");
+          const saveBtn = document.getElementById("saveBtn");
+          const forwardBtn = document.getElementById("forwardBtn");
           const editToolbar = document.getElementById("editToolbar");
           [
             ["toggleSidebar", UI.toc],
             ["refreshOutline", UI.refreshToc],
-            ["editBtn", UI.edit],
-            ["downloadBtn", UI.download + " DOCX"],
             ["zoomOut", UI.zoomOut],
             ["zoomIn", UI.zoomIn],
             ["fitWidth", UI.fitWidth],
@@ -358,6 +403,21 @@ export function renderDocxViewer(opts: {
           ].forEach(function (item) {
             window.__NFV_PREVIEW__?.registerButtonAction(item[0], { label: item[1] });
           });
+          function doForward() {
+            const detail = {
+              kind: "docx",
+              title: ${JSON.stringify(opts.title)},
+              fileUrl: fileUrl,
+              dirty: dirty,
+            };
+            window.__NFV_PREVIEW__?.emit("forward", detail);
+            return detail;
+          }
+          window.__NFV_PREVIEW__?.registerAction(
+            "forward",
+            { label: UI.forward, kind: "method" },
+            doForward,
+          );
           let scale = 1;
           let editing = false;
           let dirty = false;
@@ -624,12 +684,13 @@ export function renderDocxViewer(opts: {
           }
 
           function setEditing(on) {
+            const scrollEl = viewer;
+            const savedTop = scrollEl ? scrollEl.scrollTop : 0;
             editing = on;
             document.body.classList.toggle("editing", on);
             editBtn.textContent = on ? UI.doneEdit : UI.edit;
             editBtn.classList.toggle("active", on);
             editToolbar.classList.toggle("visible", on);
-            window.__NFV_PREVIEW__?.setState({ editing: editing });
             root.querySelectorAll("section.docx article").forEach(function (article) {
               article.contentEditable = on ? "true" : "false";
               if (on) {
@@ -637,19 +698,22 @@ export function renderDocxViewer(opts: {
               }
             });
             if (on) {
-              downloadBtn.disabled = false;
-              pageMeta.textContent = (pageMeta.textContent || "").replace(/ · 已修改/, "") + " · 编辑中";
+              saveBtn.disabled = false;
+              pageMeta.textContent = (pageMeta.dataset.base || "") + " · 编辑中";
             } else {
               buildOutline();
               pageMeta.textContent = dirty
-                ? (pageMeta.dataset.base || "") + " · 已修改"
+                ? (pageMeta.dataset.base || "") + " · 已修改，可保存下载"
                 : (pageMeta.dataset.base || pageMeta.textContent);
             }
+            requestAnimationFrame(function () {
+              if (scrollEl) scrollEl.scrollTop = savedTop;
+            });
           }
 
           function onInput() {
             dirty = true;
-            downloadBtn.disabled = false;
+            saveBtn.disabled = false;
           }
 
           function collectHtml() {
@@ -665,9 +729,9 @@ export function renderDocxViewer(opts: {
             return parts.join('<div style="page-break-after:always"></div>');
           }
 
-          async function downloadDocx() {
-            downloadBtn.disabled = true;
-            downloadBtn.textContent = "导出中…";
+          async function saveDocx() {
+            saveBtn.disabled = true;
+            saveBtn.textContent = "导出中…";
             try {
               // If never edited, download original bytes for best fidelity
               if (!dirty && originalBuffer) {
@@ -696,8 +760,8 @@ export function renderDocxViewer(opts: {
             } catch (err) {
               alert(err && err.message ? err.message : String(err));
             } finally {
-              downloadBtn.disabled = false;
-              downloadBtn.textContent = UI.download + " DOCX";
+              saveBtn.disabled = false;
+              saveBtn.textContent = UI.save;
             }
           }
 
@@ -745,7 +809,7 @@ export function renderDocxViewer(opts: {
             const baseMeta = pages ? (pages + " 页 · Word 版式") : "Word 版式";
             pageMeta.dataset.base = baseMeta;
             pageMeta.textContent = baseMeta;
-            window.__NFV_PREVIEW__?.setState({ kind: "docx", pages: pages, editing: editing });
+            window.__NFV_PREVIEW__?.setState({ kind: "docx", pages: pages });
             applyZoom();
             buildOutline();
             try { highlightKeyword(root, keyword); } catch (_) {}
@@ -753,7 +817,7 @@ export function renderDocxViewer(opts: {
             requestAnimationFrame(function () {
               requestAnimationFrame(function () { buildOutline(); });
             });
-            downloadBtn.disabled = false;
+            saveBtn.disabled = false;
             if (viewer.clientWidth < 900) fitWidth();
           } catch (err) {
             status.textContent = UI.docxFailed.replace("{error}", err && err.message ? err.message : String(err));
@@ -771,7 +835,8 @@ export function renderDocxViewer(opts: {
           };
           document.getElementById("refreshOutline").onclick = buildOutline;
           editBtn.onclick = function () { setEditing(!editing); };
-          downloadBtn.onclick = function () { downloadDocx(); };
+          saveBtn.onclick = function () { saveDocx(); };
+          forwardBtn.onclick = function () { doForward(); };
           editToolbar.querySelectorAll("[data-cmd]").forEach(function (btn) {
             btn.addEventListener("click", function () {
               document.execCommand(btn.getAttribute("data-cmd"), false);

@@ -153,7 +153,20 @@ export function renderExcelViewer(opts: {
           position: relative; z-index: 1;
         }
         table.xl-sheet td.hl { background: #fff2a8; }
-        table.xl-sheet tr:hover td:not(.selected) { background: #f7fbf8; }
+        table.xl-sheet td.editing {
+          outline: 2px solid var(--xl-sel-border);
+          outline-offset: -2px;
+          background: #fff;
+          padding: 0;
+        }
+        table.xl-sheet td.editing input.cell-editor {
+          display: block; width: 100%; height: 100%; min-height: 28px;
+          border: 0; outline: none; margin: 0; padding: 6px 8px;
+          font: inherit; color: inherit; background: transparent;
+          box-sizing: border-box;
+        }
+        body.xl-editing table.xl-sheet td { cursor: text; }
+        table.xl-sheet tr:hover td:not(.selected):not(.editing) { background: #f7fbf8; }
         table.xl-sheet tr:hover th { background: #e8f5ee; }
         body.resizing-col, body.resizing-col * { cursor: col-resize !important; user-select: none !important; }
         body.resizing-row, body.resizing-row * { cursor: row-resize !important; user-select: none !important; }
@@ -182,13 +195,38 @@ export function renderExcelViewer(opts: {
           height: 28px; border: 1px solid var(--xl-border); border-radius: 4px;
           padding: 0 8px; font-size: 12px; width: 120px;
         }
+        .nfv-local-bar {
+          background: #fff !important;
+          border-bottom: 1px solid var(--xl-border) !important;
+        }
+        .nfv-local-bar button {
+          background: #fff; color: #222;
+          border: 1px solid var(--xl-border); border-radius: 4px;
+          padding: 6px 10px; font-size: 13px; cursor: pointer;
+        }
+        .nfv-local-bar button:hover { border-color: var(--xl-green); color: var(--xl-green); }
+        .nfv-local-bar button.active {
+          background: #eaf6ef; border-color: #9fd0b1; color: var(--xl-green-2);
+        }
+        .nfv-local-bar button.primary {
+          background: var(--xl-green); border-color: var(--xl-green); color: #fff;
+        }
+        .nfv-local-bar button.primary:hover {
+          background: var(--xl-green-2); border-color: var(--xl-green-2); color: #fff;
+        }
       </style>
     `,
     body: `
       <div class="app">
+      <div class="nfv-local-bar">
+        <span class="meta" id="pageMeta"></span>
+        <button type="button" id="editBtn">${escapeHtml(ui.edit)}</button>
+        <button type="button" id="saveBtn" class="primary">${escapeHtml(ui.save)}</button>
+        <button type="button" id="forwardBtn">${escapeHtml(ui.forward)}</button>
+      </div>
       <div class="topbar">
         <div style="display:flex;align-items:center;gap:12px;min-width:0;flex:1">
-          <span class="meta" id="pageMeta"></span>
+          <span class="meta"></span>
         </div>
         <div class="actions">
           <div class="scale-box" title="${escapeHtml(ui.rowHeight)}">
@@ -209,7 +247,6 @@ export function renderExcelViewer(opts: {
           <button type="button" id="searchBtn">查找</button>
           <span class="sep"></span>
           <button type="button" id="freezeBtn" class="active">冻结首行</button>
-          <button type="button" id="downloadBtn">下载</button>
         </div>
       </div>
       ${watermarkLayer(opts.watermark)}
@@ -241,9 +278,13 @@ export function renderExcelViewer(opts: {
           const fxInput = document.getElementById("fxInput");
           const notice = document.getElementById("notice");
           const freezeBtn = document.getElementById("freezeBtn");
+          const editBtn = document.getElementById("editBtn");
+          const saveBtn = document.getElementById("saveBtn");
+          const forwardBtn = document.getElementById("forwardBtn");
           const searchBox = document.getElementById("searchBox");
           const rowLabel = document.getElementById("rowLabel");
           const colLabel = document.getElementById("colLabel");
+          const fileTitle = ${JSON.stringify(opts.title)};
           [
             ["rowOut", "减小行高"],
             ["rowIn", "增大行高"],
@@ -251,10 +292,26 @@ export function renderExcelViewer(opts: {
             ["colIn", "增大列宽"],
             ["fitWindow", "适合窗口"],
             ["freezeBtn", "冻结首行"],
-            ["downloadBtn", "下载"],
           ].forEach(function (item) {
             window.__NFV_PREVIEW__?.registerButtonAction(item[0], { label: item[1] });
           });
+          function doForward() {
+            if (activeEditor) commitCellEditor(true);
+            const detail = {
+              kind: "excel",
+              title: fileTitle,
+              fileUrl: fileUrl,
+              sheet: activeSheet,
+              dirty: dirty,
+            };
+            window.__NFV_PREVIEW__?.emit("forward", detail);
+            return detail;
+          }
+          window.__NFV_PREVIEW__?.registerAction(
+            "forward",
+            { label: UI.forward, kind: "method" },
+            doForward,
+          );
           const MAX_ROWS = 800;
           const MAX_COLS = 60;
           const ROW_HEAD = 48;
@@ -274,6 +331,9 @@ export function renderExcelViewer(opts: {
           let rowHeights = [];
           let colCount = 0;
           let rowCount = 0;
+          let editing = false;
+          let dirty = false;
+          let activeEditor = null;
 
           function waitXlsx() {
             if (window.XLSX) return Promise.resolve();
@@ -319,7 +379,9 @@ export function renderExcelViewer(opts: {
           function updateMeta() {
             if (!activeSheet) return;
             pageMeta.textContent =
-              activeSheet + " · " + rowCount + " 行 × " + colCount + " 列 · 已适合窗口";
+              activeSheet + " · " + rowCount + " 行 × " + colCount + " 列" +
+              (dirty ? " · 已修改" : "") +
+              (editing ? " · 编辑中" : " · 已适合窗口");
             window.__NFV_PREVIEW__?.setState({
               kind: "excel",
               sheet: activeSheet,
@@ -327,6 +389,139 @@ export function renderExcelViewer(opts: {
               cols: colCount,
               freezeHeader: freezeHeader,
             });
+          }
+
+          function parseCellValue(raw) {
+            var text = raw == null ? "" : String(raw);
+            if (text === "") return { t: "s", v: "" };
+            var trimmed = text.trim();
+            if (/^-?\\d+(\\.\\d+)?([eE][-+]?\\d+)?$/.test(trimmed)) {
+              return { t: "n", v: Number(trimmed) };
+            }
+            return { t: "s", v: text };
+          }
+
+          function writeSheetCell(r, c, value) {
+            if (!workbook || !activeSheet) return;
+            var sheet = workbook.Sheets[activeSheet];
+            if (!sheet) return;
+            var addr = XLSX.utils.encode_cell({ r: r, c: c });
+            if (value === "" || value == null) {
+              delete sheet[addr];
+            } else {
+              var parsed = parseCellValue(value);
+              if (parsed.t === "n") sheet[addr] = { t: "n", v: parsed.v };
+              else sheet[addr] = { t: "s", v: parsed.v };
+            }
+            if (!sheet["!ref"]) {
+              sheet["!ref"] = XLSX.utils.encode_range({
+                s: { r: r, c: c },
+                e: { r: r, c: c },
+              });
+            } else {
+              var range = XLSX.utils.decode_range(sheet["!ref"]);
+              if (r < range.s.r) range.s.r = r;
+              if (c < range.s.c) range.s.c = c;
+              if (r > range.e.r) range.e.r = r;
+              if (c > range.e.c) range.e.c = c;
+              sheet["!ref"] = XLSX.utils.encode_range(range);
+            }
+          }
+
+          function commitCellEditor(save) {
+            if (!activeEditor) return;
+            var input = activeEditor.input;
+            var td = activeEditor.td;
+            var r = activeEditor.r;
+            var c = activeEditor.c;
+            var original = activeEditor.original;
+            var next = save ? input.value : original;
+            activeEditor = null;
+            td.classList.remove("editing");
+            td.innerHTML = "";
+            td.textContent = next;
+            td.setAttribute("title", next);
+            td.classList.toggle("num", isNumericLike(next));
+            fxInput.value = next;
+            if (save && matrix && matrix.rows[r]) {
+              var prev = matrix.rows[r][c] == null ? "" : String(matrix.rows[r][c]);
+              if (prev !== next) {
+                matrix.rows[r][c] = next;
+                writeSheetCell(r, c, next);
+                dirty = true;
+                updateMeta();
+                refreshEditNotice();
+              }
+            }
+          }
+
+          function refreshEditNotice() {
+            if (editing) {
+              notice.hidden = false;
+              var base = dirty
+                ? "编辑中：双击单元格修改。点「保存」下载当前工作簿。"
+                : "编辑中：双击单元格修改，改完点「保存」下载。";
+              if (matrix && matrix.truncated) {
+                base += " 注意：超大表仅显示前部，未显示区域不会被改写。";
+              }
+              notice.textContent = base;
+            } else if (matrix && matrix.truncated) {
+              notice.hidden = false;
+              notice.textContent = "工作表较大，已截断显示前 " + rowCount + " 行 / " + colCount +
+                " 列（原表约 " + matrix.totalRows + " 行 × " + matrix.totalCols + " 列）。";
+            } else if (dirty) {
+              notice.hidden = false;
+              notice.textContent = "表格已修改，点「保存」下载文件。";
+            } else {
+              notice.hidden = true;
+            }
+          }
+
+          function startCellEdit(td) {
+            if (!editing || !td) return;
+            if (activeEditor) {
+              if (activeEditor.td === td) return;
+              commitCellEditor(true);
+            }
+            var r = Number(td.getAttribute("data-r"));
+            var c = Number(td.getAttribute("data-c"));
+            if (Number.isNaN(r) || Number.isNaN(c)) return;
+            gridHost.querySelectorAll("td.selected").forEach(function (x) { x.classList.remove("selected"); });
+            td.classList.add("selected");
+            var original = td.getAttribute("title") || td.textContent || "";
+            td.classList.add("editing");
+            td.innerHTML = "";
+            var input = document.createElement("input");
+            input.className = "cell-editor";
+            input.type = "text";
+            input.value = original;
+            td.appendChild(input);
+            activeEditor = { td: td, input: input, r: r, c: c, original: original };
+            nameBox.textContent = colLetter(c) + (r + 1);
+            fxInput.value = original;
+            input.focus({ preventScroll: true });
+            input.select();
+            input.onkeydown = function (ev) {
+              if (ev.key === "Enter") {
+                ev.preventDefault();
+                commitCellEditor(true);
+              } else if (ev.key === "Escape") {
+                ev.preventDefault();
+                commitCellEditor(false);
+              }
+            };
+            input.onblur = function () { commitCellEditor(true); };
+          }
+
+          function setEditing(on) {
+            if (activeEditor) commitCellEditor(true);
+            editing = !!on;
+            document.body.classList.toggle("xl-editing", editing);
+            editBtn.textContent = editing ? UI.doneEdit : UI.edit;
+            editBtn.classList.toggle("active", editing);
+            fxInput.readOnly = !editing;
+            refreshEditNotice();
+            updateMeta();
           }
 
           function applyColWidths() {
@@ -544,6 +739,7 @@ export function renderExcelViewer(opts: {
           }
 
           function renderSheet(name) {
+            if (activeEditor) commitCellEditor(true);
             activeSheet = name;
             nameBox.textContent = "A1";
             fxInput.value = "";
@@ -551,13 +747,7 @@ export function renderExcelViewer(opts: {
             rowCount = matrix.rows.length;
             colCount = matrix.cols;
 
-            if (matrix.truncated) {
-              notice.hidden = false;
-              notice.textContent = "工作表较大，已截断显示前 " + rowCount + " 行 / " + colCount +
-                " 列（原表约 " + matrix.totalRows + " 行 × " + matrix.totalCols + " 列）。";
-            } else {
-              notice.hidden = true;
-            }
+            refreshEditNotice();
 
             var parts = [];
             parts.push('<table class="xl-sheet" id="xlTable"><thead><tr><th class="corner"></th>');
@@ -629,7 +819,8 @@ export function renderExcelViewer(opts: {
           }
 
           gridHost.addEventListener("click", function (e) {
-            if (e.target.closest(".col-resizer, .row-resizer")) return;
+            if (e.target.closest(".col-resizer, .row-resizer, .cell-editor")) return;
+            if (activeEditor) commitCellEditor(true);
             var td = e.target.closest("td");
             if (!td || !gridHost.contains(td)) return;
             gridHost.querySelectorAll("td.selected").forEach(function (x) { x.classList.remove("selected"); });
@@ -638,6 +829,38 @@ export function renderExcelViewer(opts: {
             var c = Number(td.getAttribute("data-c"));
             nameBox.textContent = colLetter(c) + (r + 1);
             fxInput.value = td.getAttribute("title") || td.textContent || "";
+          });
+
+          gridHost.addEventListener("dblclick", function (e) {
+            if (e.target.closest(".col-resizer, .row-resizer")) return;
+            var td = e.target.closest("td");
+            if (!td || !gridHost.contains(td)) return;
+            if (!editing) setEditing(true);
+            startCellEdit(td);
+          });
+
+          fxInput.addEventListener("keydown", function (e) {
+            if (!editing) return;
+            if (e.key !== "Enter") return;
+            e.preventDefault();
+            var selected = gridHost.querySelector("td.selected");
+            if (!selected) return;
+            var r = Number(selected.getAttribute("data-r"));
+            var c = Number(selected.getAttribute("data-c"));
+            var next = fxInput.value;
+            selected.textContent = next;
+            selected.setAttribute("title", next);
+            selected.classList.toggle("num", isNumericLike(next));
+            if (matrix && matrix.rows[r]) {
+              var prev = matrix.rows[r][c] == null ? "" : String(matrix.rows[r][c]);
+              if (prev !== next) {
+                matrix.rows[r][c] = next;
+                writeSheetCell(r, c, next);
+                dirty = true;
+                updateMeta();
+                refreshEditNotice();
+              }
+            }
           });
 
           try {
@@ -703,19 +926,52 @@ export function renderExcelViewer(opts: {
           searchBox.addEventListener("keydown", function (e) {
             if (e.key === "Enter") applySearch(searchBox.value);
           });
-          document.getElementById("downloadBtn").onclick = function () {
-            if (!fileBuffer) {
-              var a0 = document.createElement("a");
-              a0.href = fileUrl;
-              a0.download = ${JSON.stringify(opts.title)};
-              a0.click();
+          editBtn.onclick = function () { setEditing(!editing); };
+          forwardBtn.onclick = function () { doForward(); };
+          saveBtn.onclick = function () {
+            if (activeEditor) commitCellEditor(true);
+            function triggerDownload(blob, name) {
+              var a = document.createElement("a");
+              a.href = URL.createObjectURL(blob);
+              a.download = name;
+              a.click();
+              setTimeout(function () { URL.revokeObjectURL(a.href); }, 800);
+            }
+            if (!dirty) {
+              if (!fileBuffer) {
+                var a0 = document.createElement("a");
+                a0.href = fileUrl;
+                a0.download = fileTitle;
+                a0.click();
+                return;
+              }
+              triggerDownload(new Blob([fileBuffer]), fileTitle);
               return;
             }
-            var a = document.createElement("a");
-            a.href = URL.createObjectURL(new Blob([fileBuffer]));
-            a.download = ${JSON.stringify(opts.title)};
-            a.click();
-            setTimeout(function () { URL.revokeObjectURL(a.href); }, 800);
+            try {
+              var lower = String(fileTitle || "workbook.xlsx").toLowerCase();
+              var bookType = "xlsx";
+              var mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+              var outName = fileTitle || "workbook.xlsx";
+              if (lower.endsWith(".csv")) {
+                bookType = "csv";
+                mime = "text/csv;charset=utf-8";
+              } else if (lower.endsWith(".tsv") || lower.endsWith(".txt")) {
+                bookType = "txt";
+                mime = "text/tab-separated-values;charset=utf-8";
+              } else if (lower.endsWith(".xls")) {
+                bookType = "xls";
+                mime = "application/vnd.ms-excel";
+              } else if (!lower.endsWith(".xlsx")) {
+                outName = outName.replace(/\\.[^.]+$/, "") + "-edited.xlsx";
+              } else {
+                outName = outName.replace(/\\.xlsx$/i, "") + "-edited.xlsx";
+              }
+              var out = XLSX.write(workbook, { bookType: bookType, type: "array" });
+              triggerDownload(new Blob([out], { type: mime }), outName);
+            } catch (err) {
+              alert("导出失败：" + (err && err.message ? err.message : String(err)));
+            }
           };
 
           window.addEventListener("resize", function () {

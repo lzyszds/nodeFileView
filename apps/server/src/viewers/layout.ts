@@ -109,6 +109,29 @@ export function layout(opts: {
     .uv-float {
       display: none !important;
     }
+    /* 页内编辑条：仅本页可见，不走宿主 bridge */
+    .nfv-local-bar {
+      display: flex !important;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+      padding: 8px 12px;
+      background: #fff;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      position: relative;
+      z-index: 40;
+      box-sizing: border-box;
+    }
+    .nfv-local-bar .meta {
+      margin-right: auto;
+      color: var(--muted);
+      font-size: 12px;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
     .uv-brand { display: none; }
     .uv-logo, .uv-divider, .uv-ext { display: none; }
     .uv-header h1, .topbar h1 { display: none; }
