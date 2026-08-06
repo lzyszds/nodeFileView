@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertCircle,
   Activity,
+  BookOpen,
   CheckCircle2,
   FileUp,
   Folder,
@@ -58,9 +59,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { LOCALES, localeLabel, useI18n, type Locale } from "@/i18n";
+import { HomePage } from "@/HomePage";
 import { cn } from "@/lib/utils";
 
-type TabId = "files" | "playground" | "settings" | "monitor";
+type TabId = "home" | "files" | "playground" | "settings" | "monitor";
 
 export default function App() {
   const { t, locale, setLocale } = useI18n();
@@ -75,7 +77,7 @@ export default function App() {
   const [loginError, setLoginError] = useState<string | null>(null);
 
   const [config, setConfig] = useState<PublicConfig | null>(null);
-  const [activeTab, setActiveTab] = useState<TabId>("files");
+  const [activeTab, setActiveTab] = useState<TabId>("home");
   const [files, setFiles] = useState<FileItem[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -232,6 +234,12 @@ export default function App() {
     () =>
       [
         {
+          id: "home" as const,
+          label: t("nav.home"),
+          icon: BookOpen,
+          group: t("nav.controlCenter"),
+        },
+        {
           id: "files" as const,
           label: t("nav.files"),
           icon: Folder,
@@ -276,6 +284,7 @@ export default function App() {
 
   const navTitles: Record<TabId, string> = useMemo(
     () => ({
+      home: t("nav.home"),
       files: t("nav.files"),
       playground: t("nav.playground"),
       settings: t("nav.settings"),
@@ -598,6 +607,10 @@ export default function App() {
             activeTab === "files" ? "overflow-hidden" : "overflow-y-auto",
           )}
         >
+          {activeTab === "home" && (
+            <HomePage onGo={(tab) => setActiveTab(tab)} />
+          )}
+
           {activeTab === "files" && (
             <div className="grid h-full min-h-0 gap-5 lg:grid-cols-[1.4fr_0.9fr]">
               <Card className="flex min-h-0 flex-col overflow-hidden">

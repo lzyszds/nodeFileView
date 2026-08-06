@@ -10,6 +10,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "7zip-bin": "^5.2.0",
     "@fastify/cors": "^10.0.2",
     "@fastify/multipart": "^9.0.3",
     "@fastify/rate-limit": "^10.2.2",
@@ -24,6 +25,7 @@
     "marked": "^18.0.8",
     "mime-types": "^2.1.35",
     "nanoid": "^5.1.0",
+    "node-unrar-js": "^2.0.2",
     "pptx-preview": "^1.0.7",
     "shiki": "^4.4.1",
     "tar": "^7.4.3",

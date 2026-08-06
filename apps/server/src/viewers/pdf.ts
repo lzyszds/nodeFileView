@@ -9,6 +9,101 @@ export function renderPdfViewer(opts: {
   watermark?: string;
   presentation?: boolean;
 }): string {
+  const highlight = (opts.highlight || "").trim();
+  // Keyword highlight needs canvas overlay → pdf.js; otherwise use browser native (Chrome PDFium).
+  if (highlight) {
+    return renderPdfJsViewer({ ...opts, highlight });
+  }
+  return renderNativePdfViewer(opts);
+}
+
+function buildPdfSrc(pdfUrl: string, page?: number): string {
+  const p = page && page > 0 ? page : 1;
+  const hash = p > 1 ? `#page=${p}` : "";
+  return `${pdfUrl}${hash}`;
+}
+
+/** Chrome / Edge / Safari / Firefox built-in PDF viewer via iframe */
+function renderNativePdfViewer(opts: {
+  title: string;
+  pdfUrl: string;
+  page?: number;
+  watermark?: string;
+  presentation?: boolean;
+}): string {
+  const ui = previewUi();
+  const presentation = Boolean(opts.presentation);
+  const src = buildPdfSrc(opts.pdfUrl, opts.page);
+
+  return layout({
+    title: opts.title,
+    ext: presentation ? "ppt" : "pdf",
+    engine: presentation ? "LibreOffice · Browser PDF" : "Browser PDF",
+    headerActions: `
+      <button type="button" class="primary" id="fsBtn">${escapeHtml(ui.fullscreen)}</button>
+    `,
+    head: `
+      <style>
+        .pdf-native {
+          position: absolute;
+          inset: 0;
+          width: 100%;
+          height: 100%;
+          border: 0;
+          background: #525659;
+        }
+        .pdf-native-wrap {
+          position: relative;
+          flex: 1;
+          min-height: 0;
+          width: 100%;
+          height: 100%;
+          overflow: hidden;
+        }
+      </style>
+    `,
+    body: `
+      ${watermarkLayer(opts.watermark)}
+      <div class="pdf-native-wrap">
+        <iframe
+          class="pdf-native"
+          id="pdfFrame"
+          title="${escapeHtml(opts.title)}"
+          src="${escapeHtml(src)}"
+          allow="fullscreen"
+        ></iframe>
+      </div>
+      <script>
+        (function () {
+          const page = ${opts.page && opts.page > 0 ? opts.page : 1};
+          window.__NFV_PREVIEW__?.registerButtonAction("fsBtn", { label: ${JSON.stringify(ui.fullscreen)} });
+          window.__NFV_PREVIEW__?.setState({
+            kind: "pdf",
+            engine: "native",
+            page: page,
+          });
+          document.getElementById("fsBtn").onclick = function () {
+            if (!document.fullscreenElement) {
+              document.documentElement.requestFullscreen?.();
+            } else {
+              document.exitFullscreen?.();
+            }
+          };
+        })();
+      </script>
+    `,
+  });
+}
+
+/** pdf.js path — only when highlight search is requested */
+function renderPdfJsViewer(opts: {
+  title: string;
+  pdfUrl: string;
+  page?: number;
+  highlight?: string;
+  watermark?: string;
+  presentation?: boolean;
+}): string {
   const ui = previewUi();
   const page = opts.page && opts.page > 0 ? opts.page : 1;
   const highlight = opts.highlight || "";
@@ -17,7 +112,7 @@ export function renderPdfViewer(opts: {
   return layout({
     title: opts.title,
     ext: presentation ? "ppt" : "pdf",
-    engine: presentation ? "LibreOffice · PDF" : "pdf.js",
+    engine: presentation ? "LibreOffice · pdf.js" : "pdf.js",
     headerActions: `
       <button type="button" id="toggleThumbs" class="active">☰</button>
       <button type="button" id="fitWidth">${escapeHtml(ui.fitWidth)}</button>
@@ -34,7 +129,7 @@ export function renderPdfViewer(opts: {
     `,
     head: `
       <style>
-        :root { --pdf-accent: ${presentation ? "#4f46e5" : "#4f46e5"}; }
+        :root { --pdf-accent: #4f46e5; }
         .shell {
           height: 100%;
           display: grid;
@@ -69,6 +164,7 @@ export function renderPdfViewer(opts: {
         }
         #pages canvas {
           max-width: 100%;
+          height: auto;
           box-shadow: var(--paper-shadow);
           background: #fff;
           border: 1px solid var(--border);
@@ -92,8 +188,7 @@ export function renderPdfViewer(opts: {
         const url = ${JSON.stringify(opts.pdfUrl)};
         const startPage = ${page};
         const keyword = ${JSON.stringify(highlight)};
-        const presentation = ${presentation ? "true" : "false"};
-        let scale = presentation ? 1.35 : 1.2;
+        let scale = ${presentation ? 1.35 : 1.2};
         let current = startPage;
         const pagesEl = document.getElementById("pages");
         const thumbsEl = document.getElementById("thumbs");
@@ -102,6 +197,10 @@ export function renderPdfViewer(opts: {
         const shell = document.getElementById("shell");
         const main = document.getElementById("main");
         let pdfDoc = null;
+        function pixelRatio() {
+          const dpr = window.devicePixelRatio || 1;
+          return Math.min(Math.max(dpr, 1), 3);
+        }
 
         function updateMeta() {
           pageInfo.textContent = current + " / " + pdfDoc.numPages;
@@ -113,12 +212,24 @@ export function renderPdfViewer(opts: {
 
         async function renderPageToCanvas(pageNum, targetScale) {
           const page = await pdfDoc.getPage(pageNum);
+          const outputScale = pixelRatio();
           const viewport = page.getViewport({ scale: targetScale });
           const canvas = document.createElement("canvas");
-          canvas.width = viewport.width;
-          canvas.height = viewport.height;
-          const ctx = canvas.getContext("2d");
-          await page.render({ canvasContext: ctx, viewport }).promise;
+          const cssWidth = Math.floor(viewport.width);
+          const cssHeight = Math.floor(viewport.height);
+          canvas.width = Math.floor(cssWidth * outputScale);
+          canvas.height = Math.floor(cssHeight * outputScale);
+          canvas.style.width = cssWidth + "px";
+          canvas.style.height = cssHeight + "px";
+          const ctx = canvas.getContext("2d", { alpha: false });
+          if (!ctx) throw new Error("2d context unavailable");
+          const transform =
+            outputScale !== 1 ? [outputScale, 0, 0, outputScale, 0, 0] : null;
+          await page.render({
+            canvasContext: ctx,
+            viewport,
+            transform,
+          }).promise;
           if (keyword) {
             const textContent = await page.getTextContent();
             const lower = keyword.toLowerCase();
@@ -129,7 +240,12 @@ export function renderPdfViewer(opts: {
               const w = (item.width || 8) * targetScale;
               const h = (item.height || 10) * targetScale;
               ctx.fillStyle = "rgba(253, 224, 71, 0.45)";
-              ctx.fillRect(tx[4], tx[5] - h, Math.max(w, 8), Math.max(h, 10));
+              ctx.fillRect(
+                tx[4] * outputScale,
+                (tx[5] - h) * outputScale,
+                Math.max(w, 8) * outputScale,
+                Math.max(h, 10) * outputScale,
+              );
             }
           }
           return canvas;
@@ -186,6 +302,7 @@ export function renderPdfViewer(opts: {
         });
         window.__NFV_PREVIEW__?.setState({
           kind: "pdf",
+          engine: "pdfjs",
           page: current,
           total: pdfDoc.numPages,
         });

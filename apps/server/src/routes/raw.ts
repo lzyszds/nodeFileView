@@ -7,6 +7,7 @@ import { extractArchiveEntry, listArchive } from "../services/archives/zipServic
 import { getFile } from "../services/fileStore.js";
 import { applySafeContentHeaders } from "../services/security/contentSafety.js";
 import { PathEscapeError, safeJoin } from "../utils/path.js";
+import { sendFileWithRange } from "../utils/sendFileRange.js";
 
 export async function rawRoutes(app: FastifyInstance): Promise<void> {
   app.get<{ Params: { fileId: string } }>(
@@ -20,7 +21,7 @@ export async function rawRoutes(app: FastifyInstance): Promise<void> {
         ext: file.ext,
       });
       reply.header("Cache-Control", "private, max-age=120");
-      return reply.send(fs.createReadStream(file.path));
+      return sendFileWithRange(request, reply, file.path);
     },
   );
 
@@ -35,7 +36,7 @@ export async function rawRoutes(app: FastifyInstance): Promise<void> {
         const abs = safeJoin(config.cacheDir, name);
         await fsp.access(abs);
         applySafeContentHeaders(reply, { filename: name });
-        return reply.send(fs.createReadStream(abs));
+        return sendFileWithRange(request, reply, abs);
       } catch (err) {
         if (err instanceof PathEscapeError) {
           return reply.code(400).send({ error: "Invalid path" });
@@ -57,7 +58,7 @@ export async function rawRoutes(app: FastifyInstance): Promise<void> {
         await fsp.access(abs);
         applySafeContentHeaders(reply, { filename: name });
         reply.header("Cache-Control", "private, max-age=300");
-        return reply.send(fs.createReadStream(abs));
+        return sendFileWithRange(request, reply, abs);
       } catch (err) {
         if (err instanceof PathEscapeError) {
           return reply.code(400).send({ error: "Invalid path" });
