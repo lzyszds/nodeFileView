@@ -4,24 +4,25 @@ import {
   Check,
   Container,
   Copy,
+  Cpu,
+  FileSpreadsheet,
   FileText,
   Globe2,
+  Image as ImageIcon,
+  Layers,
   Link2,
-  Shield,
+  ShieldCheck,
+  Sparkles,
   Terminal,
   Upload,
+  Zap,
   type LucideIcon,
 } from "lucide-react";
 import type { PublicConfig } from "@/api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { FilePreviewLogo } from "@/components/FilePreviewLogo";
+
 import { useI18n } from "@/i18n";
 import { cn } from "@/lib/utils";
 
@@ -76,6 +77,7 @@ function CodeBlock(props: {
   copyLabel: string;
   copiedLabel: string;
 }) {
+  const { t } = useI18n();
   const [copied, setCopied] = useState(false);
 
   async function onCopy() {
@@ -89,80 +91,69 @@ function CodeBlock(props: {
   }
 
   return (
-    <div className="code-block relative border border-neutral-800 bg-neutral-950">
-      <pre className="p-4 pr-12 font-mono text-[11px] leading-relaxed text-neutral-100 whitespace-pre">
+    <div className="terminal-obsidian relative overflow-hidden rounded-xl border border-slate-800/90 bg-[#080c14] text-slate-200 shadow-xl group">
+      <div className="flex items-center justify-between border-b border-slate-800/80 bg-slate-950/90 px-3.5 py-2 text-[11px] font-mono">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span className="size-2.5 rounded-full bg-[#ef4444] shadow-[0_0_8px_rgba(239,68,68,0.6)] shrink-0" />
+          <span className="size-2.5 rounded-full bg-[#eab308] shadow-[0_0_8px_rgba(234,179,8,0.6)] shrink-0" />
+          <span className="size-2.5 rounded-full bg-[#22c55e] shadow-[0_0_8px_rgba(34,197,94,0.6)] shrink-0" />
+          <span className="ml-2 text-slate-400 font-medium truncate">{t("home.terminalLabel")}</span>
+        </div>
+        <div className="flex items-center gap-2.5 shrink-0">
+          <span className="text-slate-500 text-[10px] font-mono hidden sm:inline">UTF-8</span>
+          <Button
+            type="button"
+            size="sm"
+            className="h-6 gap-1 border border-slate-700/80 bg-slate-800/90 hover:bg-slate-700 hover:text-white px-2 text-[11px] text-slate-200 shadow-xs transition-all cursor-pointer active:scale-95"
+            onClick={() => void onCopy()}
+          >
+            {copied ? (
+              <>
+                <Check className="size-3 text-emerald-400" />
+                <span className="text-emerald-300 font-medium">{props.copiedLabel}</span>
+              </>
+            ) : (
+              <>
+                <Copy className="size-3 text-slate-400 group-hover:text-slate-200 transition-colors" />
+                <span>{props.copyLabel}</span>
+              </>
+            )}
+          </Button>
+        </div>
+      </div>
+      <pre className="p-4 font-mono text-[12px] leading-relaxed text-slate-200 whitespace-pre overflow-x-auto selection:bg-indigo-500 selection:text-white">
         {props.code}
       </pre>
-      <Button
-        type="button"
-        size="sm"
-        variant="outline"
-        className="absolute top-2 right-2 z-10 h-7 gap-1 border-neutral-600 bg-neutral-900 px-2 text-[11px] text-neutral-100 hover:bg-neutral-800 hover:text-white"
-        onClick={() => void onCopy()}
-      >
-        {copied ? (
-          <>
-            <Check className="size-3" />
-            {props.copiedLabel}
-          </>
-        ) : (
-          <>
-            <Copy className="size-3" />
-            {props.copyLabel}
-          </>
-        )}
-      </Button>
     </div>
   );
 }
 
-function SectionTitle(props: {
+function SectionHeader(props: {
   id: string;
   icon: LucideIcon;
   title: string;
   desc?: string;
+  badge?: string;
 }) {
   const Icon = props.icon;
   return (
     <div id={props.id} className="scroll-mt-6 space-y-1">
-      <div className="flex items-center gap-2">
-        <span className="flex size-8 items-center justify-center rounded-lg border border-neutral-200 bg-neutral-100 text-neutral-900">
+      <div className="flex items-center gap-2.5">
+        <span className="flex size-7 items-center justify-center rounded-lg bg-indigo-50 border border-indigo-100/80 text-indigo-600 shadow-xs">
           <Icon className="size-4" />
         </span>
-        <h2 className="text-base font-semibold text-slate-900">{props.title}</h2>
+        <h2 className="text-lg font-bold tracking-tight text-slate-900">{props.title}</h2>
+        {props.badge && (
+          <span className="rounded-full bg-slate-100 border border-slate-200/80 px-2 py-0.5 text-[10px] font-mono font-medium text-slate-600">
+            {props.badge}
+          </span>
+        )}
       </div>
       {props.desc ? (
-        <p className="pl-10 text-xs leading-relaxed text-slate-500">
+        <p className="pl-9 text-xs leading-relaxed text-slate-500 max-w-3xl">
           {props.desc}
         </p>
       ) : null}
-    </div>
-  );
-}
-
-function TipList(props: { items: string[] }) {
-  return (
-    <ul className="space-y-2">
-      {props.items.map((item) => (
-        <li
-          key={item}
-          className="flex gap-2 text-xs leading-relaxed text-slate-600"
-        >
-          <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-neutral-900" />
-          <span>{item}</span>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-function EnvRow(props: { name: string; desc: string }) {
-  return (
-    <div className="grid gap-1 border-b border-slate-100 py-2.5 last:border-0 sm:grid-cols-[140px_1fr] sm:gap-3">
-      <code className="font-mono text-[11px] font-semibold text-neutral-900">
-        {props.name}
-      </code>
-      <p className="text-xs leading-relaxed text-slate-600">{props.desc}</p>
     </div>
   );
 }
@@ -172,6 +163,7 @@ export function HomePage(props: {
   onGo: (tab: HomeTabTarget) => void;
 }) {
   const { t } = useI18n();
+  const [deployTab, setDeployTab] = useState<"current" | "prod" | "test">("current");
 
   const deploy = useMemo(() => {
     const trustHost = joinHostList(props.config?.trustHost, DEFAULT_TRUST_HOST);
@@ -211,37 +203,50 @@ export function HomePage(props: {
     {
       title: t("home.fmtWord"),
       desc: t("home.fmtWordDesc"),
+      icon: FileText,
+      iconColor: "text-blue-600 bg-blue-50 border-blue-100",
+      badgeColor: "bg-blue-50/80 text-blue-700 border-blue-200/80",
       tags: ["docx", "doc", "wps", "odt"],
     },
     {
       title: t("home.fmtExcel"),
       desc: t("home.fmtExcelDesc"),
+      icon: FileSpreadsheet,
+      iconColor: "text-emerald-600 bg-emerald-50 border-emerald-100",
+      badgeColor: "bg-emerald-50/80 text-emerald-700 border-emerald-200/80",
       tags: ["xlsx", "xls", "csv", "tsv"],
     },
     {
       title: t("home.fmtPptPdf"),
       desc: t("home.fmtPptPdfDesc"),
+      icon: Layers,
+      iconColor: "text-rose-600 bg-rose-50 border-rose-100",
+      badgeColor: "bg-rose-50/80 text-rose-700 border-rose-200/80",
       tags: ["pptx", "ppt", "pdf"],
     },
     {
       title: t("home.fmtImage"),
       desc: t("home.fmtImageDesc"),
+      icon: ImageIcon,
+      iconColor: "text-amber-600 bg-amber-50 border-amber-100",
+      badgeColor: "bg-amber-50/80 text-amber-700 border-amber-200/80",
       tags: ["jpg", "png", "webp", "heic", "svg"],
     },
     {
       title: t("home.fmtText"),
       desc: t("home.fmtTextDesc"),
+      icon: Terminal,
+      iconColor: "text-purple-600 bg-purple-50 border-purple-100",
+      badgeColor: "bg-purple-50/80 text-purple-700 border-purple-200/80",
       tags: ["md", "txt", "json", "js", "ts", "py"],
     },
     {
       title: t("home.fmtArchive"),
       desc: t("home.fmtArchiveDesc"),
+      icon: BookOpen,
+      iconColor: "text-cyan-600 bg-cyan-50 border-cyan-100",
+      badgeColor: "bg-cyan-50/80 text-cyan-700 border-cyan-200/80",
       tags: ["zip", "rar", "7z", "tar", "gz"],
-    },
-    {
-      title: t("home.fmtMedia"),
-      desc: t("home.fmtMediaDesc"),
-      tags: ["mp4", "webm", "mp3", "wav"],
     },
   ];
 
@@ -266,7 +271,12 @@ export function HomePage(props: {
       title: t("home.step3Title"),
       desc: t("home.step3Desc"),
       action: (
-        <Button size="sm" variant="outline" onClick={() => props.onGo("files")}>
+        <Button
+          size="sm"
+          variant="outline"
+          className="w-full justify-center border-slate-200 bg-white text-slate-800 hover:bg-slate-50 hover:border-slate-300 shadow-xs text-xs font-semibold whitespace-nowrap"
+          onClick={() => props.onGo("files")}
+        >
           {t("home.ctaFiles")}
         </Button>
       ),
@@ -279,6 +289,7 @@ export function HomePage(props: {
         <Button
           size="sm"
           variant="outline"
+          className="w-full justify-center border-slate-200 bg-white text-slate-800 hover:bg-slate-50 hover:border-slate-300 shadow-xs text-xs font-semibold whitespace-nowrap"
           onClick={() => props.onGo("playground")}
         >
           {t("home.ctaPlayground")}
@@ -287,308 +298,295 @@ export function HomePage(props: {
     },
   ];
 
-  const toc = [
-    { href: "#guide-flow", label: t("home.tocFlow") },
-    { href: "#guide-deploy", label: t("home.tocDeploy") },
-    { href: "#guide-proxy", label: t("home.tocProxy") },
-    { href: "#guide-api", label: t("home.tocApi") },
-    { href: "#guide-formats", label: t("home.tocFormats") },
-  ];
-
   return (
-    <div className="mx-auto max-w-5xl space-y-6 pb-8">
-      <section className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white px-6 py-8 md:px-8">
-        <div
-          className="pointer-events-none absolute inset-0 opacity-80"
-          style={{
-            background:
-              "radial-gradient(ellipse 70% 80% at 0% 0%, #e8e8e8, transparent), radial-gradient(ellipse 50% 60% at 100% 100%, #f0f0f0, transparent)",
-          }}
-        />
-        <div className="relative space-y-5">
-          <div className="inline-flex items-center gap-2 rounded-full border border-neutral-300 bg-neutral-100 px-3 py-1 text-[11px] font-medium text-neutral-900">
-            <BookOpen className="size-3.5" />
-            {t("home.badge")}
+    <div className="space-y-12 pb-16">
+      {/* 2-Column Hero Header with Ambient Lighting & Floating Elements */}
+      <section className="relative grid gap-8 lg:grid-cols-[1.15fr_0.85fr] items-center">
+        <div className="space-y-6">
+          <div className="flex items-center gap-4">
+            <FilePreviewLogo size={54} className="size-12 sm:size-14 rounded-2xl hover:scale-105 transition-transform" />
+            <div className="space-y-1">
+              <div className="floating-badge inline-flex items-center gap-2 rounded-full border border-indigo-200/90 bg-gradient-to-r from-indigo-50/90 via-purple-50/70 to-white px-3.5 py-1 text-xs font-semibold text-indigo-900 shadow-[0_2px_12px_rgba(99,102,241,0.15)] hover:shadow-indigo-300/40 hover:scale-105 transition-all">
+                <Sparkles className="size-3.5 text-indigo-600 animate-spin" style={{ animationDuration: '6s' }} />
+                <span>{t("home.badge")}</span>
+              </div>
+            </div>
           </div>
-          <div className="space-y-2">
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900 md:text-3xl">
-              nodeFileView
+          
+          <div className="space-y-3">
+            <h1 className="text-3xl font-black tracking-tight text-slate-900 sm:text-4xl lg:text-5xl leading-tight flex items-baseline flex-wrap gap-3">
+              <span className="gradient-title">{t("nav.brand")}</span>
+              <span className="text-sm font-semibold tracking-normal text-slate-400 font-mono">nodeFileView</span>
             </h1>
-            <p className="max-w-3xl text-sm leading-relaxed text-slate-600 md:text-[15px]">
+            <p className="text-sm leading-relaxed text-slate-600 max-w-2xl font-normal">
               {t("home.intro")}
             </p>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Button size="sm" onClick={() => props.onGo("files")}>
-              {t("home.ctaFiles")}
+
+          <div className="flex flex-wrap items-center gap-3 pt-1">
+            <Button
+              size="default"
+              className="shimmer-btn bg-slate-900 text-white hover:bg-slate-800 shadow-md shadow-slate-900/15 hover:shadow-slate-900/30 active:scale-95 font-bold px-6 py-2.5 rounded-xl whitespace-nowrap shrink-0 transition-all cursor-pointer"
+              onClick={() => props.onGo("files")}
+            >
+              <Upload className="size-4 mr-2 shrink-0" />
+              <span className="whitespace-nowrap">{t("home.ctaFiles")}</span>
             </Button>
             <Button
-              size="sm"
+              size="default"
               variant="outline"
+              className="border-slate-200/90 bg-white text-slate-800 hover:bg-slate-50 hover:border-slate-300 shadow-xs active:scale-95 font-semibold px-5 py-2.5 rounded-xl whitespace-nowrap shrink-0 transition-all cursor-pointer"
               onClick={() => props.onGo("playground")}
             >
-              {t("home.ctaPlayground")}
+              <Terminal className="size-4 mr-2 text-indigo-600 shrink-0" />
+              <span className="whitespace-nowrap">{t("home.ctaPlayground")}</span>
             </Button>
           </div>
-          <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-4">
-            {toc.map((item) => (
-              <a
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  "rounded-full border border-neutral-300 bg-white/80 px-3 py-1 text-[11px] font-medium text-neutral-700",
-                  "transition hover:border-neutral-900 hover:bg-neutral-900 hover:text-white",
-                )}
-              >
-                {item.label}
-              </a>
-            ))}
+
+          {/* Floating Organic Feature Badges */}
+          <div className="flex flex-wrap items-center gap-2 pt-2 text-xs">
+            <span className="float-card-1 inline-flex items-center gap-1.5 rounded-full bg-white/90 border border-slate-200/80 px-3 py-1 font-medium text-slate-700 shadow-2xs">
+              <span className="size-1.5 rounded-full bg-indigo-500" />
+              {t("home.pillOffice")}
+            </span>
+            <span className="float-card-2 inline-flex items-center gap-1.5 rounded-full bg-white/90 border border-slate-200/80 px-3 py-1 font-medium text-slate-700 shadow-2xs">
+              <span className="size-1.5 rounded-full bg-emerald-500" />
+              {t("home.pillSandbox")}
+            </span>
+            <span className="float-card-1 inline-flex items-center gap-1.5 rounded-full bg-white/90 border border-slate-200/80 px-3 py-1 font-medium text-slate-700 shadow-2xs">
+              <span className="size-1.5 rounded-full bg-sky-500" />
+              {t("home.pillDocker")}
+            </span>
+          </div>
+        </div>
+
+        {/* Right Obsidian Demo Terminal with Dynamic Glow & Live Cursor */}
+        <div className="relative group">
+          {/* Decorative breathing multi-color aura */}
+          <div className="absolute -inset-2 rounded-3xl bg-gradient-to-r from-indigo-500/30 via-purple-500/25 to-sky-500/30 blur-2xl opacity-75 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+          
+          <div className="glass-card border border-slate-200/80 shadow-2xl relative overflow-hidden rounded-2xl flex flex-col gap-0 p-0 bg-white">
+            <div className="p-3.5 px-4 border-b border-slate-200/80 bg-white/90 backdrop-blur-sm flex items-center justify-between">
+              <div className="text-xs font-mono font-bold text-slate-800 flex items-center gap-2">
+                <Terminal className="size-3.5 text-indigo-600 shrink-0" />
+                <span>{t("home.apiPreviewTitle")}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="flex items-center gap-1 text-[10px] font-mono text-emerald-600 bg-emerald-50 border border-emerald-200/80 px-2 py-0.5 rounded-full font-medium shadow-2xs">
+                  <span className="size-1.5 rounded-full bg-emerald-500 animate-ping" />
+                  LIVE
+                </span>
+                <Badge className="font-mono text-[10px] border border-blue-200 bg-blue-50 text-blue-700 shrink-0">
+                  HTTP GET
+                </Badge>
+              </div>
+            </div>
+            
+            <div className="p-3.5 bg-slate-950 space-y-3">
+              <div className="flex items-center gap-1.5 text-indigo-300 font-mono text-[11px] bg-slate-900/90 px-3 py-1.5 rounded-lg border border-slate-800">
+                <span className="text-emerald-400 font-bold">$</span>
+                <span className="truncate">curl -i http://localhost:8012/onlinePreview...</span>
+                <span className="inline-block w-1.5 h-3.5 bg-indigo-400 cursor-blink ml-auto shrink-0" />
+              </div>
+              <CodeBlock
+                code={API_SNIPPET}
+                copyLabel={t("home.copy")}
+                copiedLabel={t("home.copied")}
+              />
+            </div>
           </div>
         </div>
       </section>
 
+      {/* Highlights Bento Capsules */}
+      <section className="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-4">
+        {[
+          {
+            icon: Zap,
+            label: t("home.featRender"),
+            desc: t("home.featRenderDesc"),
+            color: "text-amber-600 bg-amber-50 border-amber-200/80",
+          },
+          {
+            icon: ShieldCheck,
+            label: t("home.featSecurity"),
+            desc: t("home.featSecurityDesc"),
+            color: "text-emerald-600 bg-emerald-50 border-emerald-200/80",
+          },
+          {
+            icon: Container,
+            label: t("home.featDocker"),
+            desc: t("home.featDockerDesc"),
+            color: "text-indigo-600 bg-indigo-50 border-indigo-200/80",
+          },
+          {
+            icon: Cpu,
+            label: t("home.featCache"),
+            desc: t("home.featCacheDesc"),
+            color: "text-sky-600 bg-sky-50 border-sky-200/80",
+          },
+        ].map((feat) => {
+          const Icon = feat.icon;
+          return (
+            <div
+              key={feat.label}
+              className="glass-card-interactive group rounded-2xl p-4 flex items-center gap-3.5 cursor-default"
+            >
+              <span className={cn("flex size-10 shrink-0 items-center justify-center rounded-xl border shadow-2xs group-hover:scale-110 group-hover:rotate-6 transition-transform duration-300", feat.color)}>
+                <Icon className="size-5" />
+              </span>
+              <div className="min-w-0">
+                <div className="text-xs font-bold text-slate-900 group-hover:text-indigo-950 transition-colors truncate">{feat.label}</div>
+                <div className="text-[11px] text-slate-500 font-normal truncate mt-0.5">{feat.desc}</div>
+              </div>
+            </div>
+          );
+        })}
+      </section>
+
+      {/* Guide Flow 4 Steps */}
       <section className="space-y-4">
-        <SectionTitle
+        <SectionHeader
           id="guide-flow"
           icon={FileText}
           title={t("home.guideTitle")}
           desc={t("home.guideDesc")}
+          badge={t("home.stepsBadge")}
         />
-        <div className="grid gap-3 md:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {steps.map((step, i) => {
             const Icon = step.icon;
             return (
-              <Card key={step.title} className="shadow-xs">
-                <CardHeader className="space-y-3 pb-3">
-                  <div className="flex items-center gap-2">
-                    <span className="flex size-7 items-center justify-center rounded-lg border border-neutral-200 bg-neutral-100 text-xs font-bold text-neutral-900">
-                      {i + 1}
+              <div
+                key={step.title}
+                className="glass-card-interactive rounded-2xl p-5 flex flex-col justify-between space-y-4 group"
+              >
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="glow-ring flex size-7 items-center justify-center rounded-lg bg-slate-900 font-mono text-xs font-bold text-white shadow-xs group-hover:scale-110 group-hover:bg-indigo-600 transition-all">
+                      0{i + 1}
                     </span>
-                    <Icon className="size-4 text-slate-400" />
+                    <span className="flex size-8 items-center justify-center rounded-lg bg-indigo-50 border border-indigo-100/70 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-all shadow-xs group-hover:rotate-6">
+                      <Icon className="size-4" />
+                    </span>
                   </div>
-                  <CardTitle className="text-sm">{step.title}</CardTitle>
-                  <CardDescription className="text-xs leading-relaxed">
+                  <h3 className="text-sm font-bold text-slate-900">{step.title}</h3>
+                  <p className="text-xs text-slate-500 leading-relaxed font-normal">
                     {step.desc}
-                  </CardDescription>
-                  {step.action ? <div className="pt-1">{step.action}</div> : null}
-                </CardHeader>
-              </Card>
+                  </p>
+                </div>
+                {step.action && <div className="pt-2">{step.action}</div>}
+              </div>
             );
           })}
         </div>
       </section>
 
+      {/* Horizontal Docker Deploy Workspace */}
       <section className="space-y-4">
-        <SectionTitle
+        <SectionHeader
           id="guide-deploy"
           icon={Terminal}
           title={t("home.deployTitle")}
           desc={t("home.deployDesc")}
         />
 
-        <Card className="shadow-xs border-neutral-300">
-          <CardHeader className="pb-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge className="border border-neutral-900 bg-neutral-900 text-white hover:bg-neutral-900">
-                {t("home.deployCurrentBadge")}
-              </Badge>
-              <CardTitle className="text-sm">
-                {t("home.deployCurrentTitle", { port: String(deploy.currentPort) })}
-              </CardTitle>
-            </div>
-            <CardDescription className="text-xs leading-relaxed">
-              {t("home.deployCurrentDesc")}
-            </CardDescription>
-            <div className="flex flex-wrap gap-2 pt-1 text-[11px] text-slate-500">
-              <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono">
-                PORT={deploy.currentPort}
-              </code>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <CodeBlock
-              code={deploy.current}
-              copyLabel={t("home.copy")}
-              copiedLabel={t("home.copied")}
-            />
-          </CardContent>
-        </Card>
-
-        <div className="grid gap-4 lg:grid-cols-2">
-          <Card className="shadow-xs">
-            <CardHeader className="pb-3">
-              <div className="flex items-center gap-2">
-                <Badge className="border border-neutral-900 bg-white text-neutral-900 hover:bg-white">
-                  {t("home.deployProdBadge")}
-                </Badge>
-                <CardTitle className="text-sm">{t("home.deployProdTitle")}</CardTitle>
-              </div>
-              <CardDescription className="text-xs leading-relaxed">
-                {t("home.deployProdDesc")}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <CodeBlock
-                code={deploy.prod}
-                copyLabel={t("home.copy")}
-                copiedLabel={t("home.copied")}
-              />
-            </CardContent>
-          </Card>
-
-          <Card className="shadow-xs">
-            <CardHeader className="pb-3">
-              <div className="flex items-center gap-2">
-                <Badge className="border border-neutral-400 bg-neutral-100 text-neutral-900 hover:bg-neutral-100">
-                  {t("home.deployTestBadge")}
-                </Badge>
-                <CardTitle className="text-sm">{t("home.deployTestTitle")}</CardTitle>
-              </div>
-              <CardDescription className="text-xs leading-relaxed">
-                {t("home.deployTestDesc")}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <CodeBlock
-                code={deploy.test}
-                copyLabel={t("home.copy")}
-                copiedLabel={t("home.copied")}
-              />
-            </CardContent>
-          </Card>
-        </div>
-
-        <Card className="shadow-xs">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">{t("home.deployEnvTitle")}</CardTitle>
-            <CardDescription className="text-xs">
-              {t("home.deployEnvDesc")}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <EnvRow name="PORT" desc={t("home.deployEnvPort")} />
-            <EnvRow name="-p" desc={t("home.deployEnvPublish")} />
-            <EnvRow name="BASIC_AUTH_*" desc={t("home.deployEnvAuth")} />
-            <EnvRow name="BASE_URL" desc={t("home.deployEnvBase")} />
-            <EnvRow name="TRUST_HOST" desc={t("home.deployEnvTrust")} />
-            <EnvRow name="NOT_TRUST_HOST" desc={t("home.deployEnvNotTrust")} />
-            <EnvRow name="-v data" desc={t("home.deployEnvData")} />
-          </CardContent>
-        </Card>
-      </section>
-
-      <section className="space-y-4">
-        <SectionTitle
-          id="guide-proxy"
-          icon={Globe2}
-          title={t("home.proxyTitle")}
-          desc={t("home.proxyDesc")}
-        />
-        <Card className="shadow-xs">
-          <CardContent className="space-y-4 pt-5">
-            <TipList
-              items={[
-                t("home.proxyTip1"),
-                t("home.proxyTip2"),
-                t("home.proxyTip3"),
-                t("home.proxyTip4"),
-              ]}
-            />
-            <div className="rounded-xl border border-neutral-300 bg-neutral-100 p-3 text-xs leading-relaxed text-neutral-800">
-              {t("home.proxyCfWarn")}
-            </div>
-          </CardContent>
-        </Card>
-      </section>
-
-      <section className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
-        <div className="space-y-4">
-          <SectionTitle
-            id="guide-api"
-            icon={Link2}
-            title={t("home.apiTitle")}
-            desc={t("home.apiDesc")}
-          />
-          <Card className="shadow-xs">
-            <CardContent className="space-y-3 pt-5">
-              <CodeBlock
-                code={API_SNIPPET}
-                copyLabel={t("home.copy")}
-                copiedLabel={t("home.copied")}
-              />
-              <p className="text-xs leading-relaxed text-slate-500">
-                {t("home.apiHint")}
-              </p>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => props.onGo("playground")}
+        <div className="glass-card rounded-2xl p-5 space-y-4 shadow-md">
+          <div className="flex items-center justify-between border-b border-slate-200/80 pb-3">
+            <div className="flex items-center gap-1.5 overflow-x-auto p-1 bg-slate-100/80 rounded-xl border border-slate-200/60 shadow-inner">
+              <button
+                type="button"
+                onClick={() => setDeployTab("current")}
+                className={cn(
+                  "px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition-all cursor-pointer active:scale-95",
+                  deployTab === "current"
+                    ? "bg-white text-slate-900 shadow-[0_1px_4px_rgba(0,0,0,0.06),0_0_8px_rgba(99,102,241,0.15)] ring-1 ring-slate-200/80"
+                    : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
+                )}
               >
-                {t("home.ctaPlayground")}
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
+                {t("home.tabCurrent", { port: deploy.currentPort })}
+              </button>
+              <button
+                type="button"
+                onClick={() => setDeployTab("prod")}
+                className={cn(
+                  "px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition-all cursor-pointer active:scale-95",
+                  deployTab === "prod"
+                    ? "bg-white text-slate-900 shadow-[0_1px_4px_rgba(0,0,0,0.06),0_0_8px_rgba(99,102,241,0.15)] ring-1 ring-slate-200/80"
+                    : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
+                )}
+              >
+                {t("home.tabProd")}
+              </button>
+              <button
+                type="button"
+                onClick={() => setDeployTab("test")}
+                className={cn(
+                  "px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition-all cursor-pointer active:scale-95",
+                  deployTab === "test"
+                    ? "bg-white text-slate-900 shadow-[0_1px_4px_rgba(0,0,0,0.06),0_0_8px_rgba(99,102,241,0.15)] ring-1 ring-slate-200/80"
+                    : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
+                )}
+              >
+                {t("home.tabTest")}
+              </button>
+            </div>
+          </div>
 
-        <div className="space-y-4">
-          <SectionTitle
-            id="guide-security"
-            icon={Shield}
-            title={t("home.securityTitle")}
+          <CodeBlock
+            code={
+              deployTab === "current"
+                ? deploy.current
+                : deployTab === "prod"
+                ? deploy.prod
+                : deploy.test
+            }
+            copyLabel={t("home.copy")}
+            copiedLabel={t("home.copied")}
           />
-          <Card className="shadow-xs">
-            <CardContent className="space-y-3 pt-5">
-              <p className="text-xs leading-relaxed text-slate-600">
-                {t("home.securityDesc")}
-              </p>
-              <div className="rounded-xl border border-slate-100 bg-slate-50/80 p-3">
-                <p className="text-xs font-semibold text-slate-800">
-                  {t("home.outTitle")}
-                </p>
-                <p className="mt-1 text-xs leading-relaxed text-slate-500">
-                  {t("home.outDesc")}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
         </div>
       </section>
 
+      {/* Formats Grid with Interactive Bouncy Tags */}
       <section className="space-y-4">
-        <SectionTitle
+        <SectionHeader
           id="guide-formats"
           icon={BookOpen}
           title={t("home.formatsTitle")}
           desc={t("home.formatsDesc")}
         />
-        <Card className="shadow-xs">
-          <CardContent className="grid gap-3 pt-5 sm:grid-cols-2 lg:grid-cols-3">
-            {formatCards.map((item) => (
+        <div className="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-3">
+          {formatCards.map((item) => {
+            const Icon = item.icon;
+            return (
               <div
                 key={item.title}
-                className="rounded-xl border border-slate-100 bg-slate-50/60 p-3"
+                className="glass-card-interactive rounded-2xl p-4 space-y-3 group hover:border-indigo-200/90"
               >
-                <p className="text-sm font-semibold text-slate-800">
-                  {item.title}
-                </p>
-                <p className="mt-1 text-xs leading-relaxed text-slate-500">
-                  {item.desc}
-                </p>
-                <div className="mt-2 flex flex-wrap gap-1">
+                <div className="flex items-center gap-2.5">
+                  <span className={cn("flex size-8 items-center justify-center rounded-lg border shadow-2xs group-hover:scale-110 group-hover:rotate-6 transition-transform duration-300", item.iconColor)}>
+                    <Icon className="size-4" />
+                  </span>
+                  <p className="text-xs font-bold text-slate-900 group-hover:text-indigo-950 transition-colors">{item.title}</p>
+                </div>
+                <p className="text-xs text-slate-500 leading-relaxed font-normal">{item.desc}</p>
+                <div className="flex flex-wrap gap-1.5 pt-1">
                   {item.tags.map((tag) => (
-                    <Badge
+                    <span
                       key={tag}
-                      variant="secondary"
-                      className="font-mono text-[10px]"
+                      className={cn(
+                        "font-mono text-[10px] border px-2 py-0.5 rounded-md font-medium shadow-2xs hover:scale-110 hover:-translate-y-0.5 transition-all duration-200 cursor-default",
+                        item.badgeColor
+                      )}
                     >
                       .{tag}
-                    </Badge>
+                    </span>
                   ))}
                 </div>
               </div>
-            ))}
-          </CardContent>
-        </Card>
+            );
+          })}
+        </div>
       </section>
     </div>
   );

@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   FileUp,
   Folder,
+  Globe,
   Lock,
   LogOut,
   RefreshCw,
@@ -13,7 +14,6 @@ import {
   Search,
   Terminal,
   Trash2,
-  Upload,
   X,
 } from "lucide-react";
 import {
@@ -37,15 +37,9 @@ import {
   type MonitorStats,
   type PublicConfig,
 } from "@/api";
+import { FilePreviewLogo } from "@/components/FilePreviewLogo";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -83,7 +77,6 @@ export default function App() {
   const [page, setPage] = useState(1);
   const [q, setQ] = useState("");
   const [busy, setBusy] = useState(false);
-  const [dragOver, setDragOver] = useState(false);
   const [message, setMessage] = useState<{ type: "ok" | "err"; text: string } | null>(
     null,
   );
@@ -184,6 +177,55 @@ export default function App() {
     });
   }, [authReady, authenticated, refresh, markLoggedOut]);
 
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+  const navItems = useMemo(
+    () =>
+      [
+        {
+          id: "home" as const,
+          label: t("nav.home"),
+          icon: BookOpen,
+          group: t("nav.controlCenter"),
+        },
+        {
+          id: "files" as const,
+          label: t("nav.files"),
+          icon: Folder,
+          group: t("nav.controlCenter"),
+        },
+        {
+          id: "playground" as const,
+          label: t("nav.playground"),
+          icon: Terminal,
+          group: t("nav.controlCenter"),
+        },
+        {
+          id: "settings" as const,
+          label: t("nav.settings"),
+          icon: Settings,
+          group: t("nav.systemAdmin"),
+        },
+        {
+          id: "monitor" as const,
+          label: t("nav.monitor"),
+          icon: Activity,
+          group: t("nav.systemAdmin"),
+        },
+      ] as const,
+    [t]
+  );
+
+  useEffect(() => {
+    const brand = t("nav.brand") || "文件预览";
+    const currentNav = navItems.find((item) => item.id === activeTab);
+    if (activeTab === "home") {
+      document.title = `${brand} - 高性能多格式在线文件预览服务`;
+    } else if (currentNav) {
+      document.title = `${currentNav.label} · ${brand}`;
+    }
+  }, [activeTab, t, navItems]);
+
   useEffect(() => {
     if (!authenticated) return;
     if (activeTab !== "monitor" && activeTab !== "settings") return;
@@ -228,50 +270,6 @@ export default function App() {
     if (authEnabled) setAuthenticated(false);
   }
 
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
-
-  const navItems = useMemo(
-    () =>
-      [
-        {
-          id: "home" as const,
-          label: t("nav.home"),
-          icon: BookOpen,
-          group: t("nav.controlCenter"),
-        },
-        {
-          id: "files" as const,
-          label: t("nav.files"),
-          icon: Folder,
-          group: t("nav.controlCenter"),
-        },
-        {
-          id: "playground" as const,
-          label: t("nav.playground"),
-          icon: Terminal,
-          group: t("nav.controlCenter"),
-        },
-        {
-          id: "settings" as const,
-          label: t("nav.settings"),
-          icon: Settings,
-          group: t("nav.systemAdmin"),
-        },
-        {
-          id: "monitor" as const,
-          label: t("nav.monitor"),
-          icon: Activity,
-          group: t("nav.systemAdmin"),
-        },
-      ] as const,
-    [t],
-  );
-
-  const navGroups = useMemo(
-    () => [t("nav.controlCenter"), t("nav.systemAdmin")],
-    [t],
-  );
-
   const formatGroups = useMemo(
     () => [
       { title: t("formats.word"), desc: t("formats.wordDesc") },
@@ -279,17 +277,6 @@ export default function App() {
       { title: t("formats.pptPdf"), desc: t("formats.pptPdfDesc") },
       { title: t("formats.other"), desc: t("formats.otherDesc") },
     ],
-    [t],
-  );
-
-  const navTitles: Record<TabId, string> = useMemo(
-    () => ({
-      home: t("nav.home"),
-      files: t("nav.files"),
-      playground: t("nav.playground"),
-      settings: t("nav.settings"),
-      monitor: t("nav.monitor"),
-    }),
     [t],
   );
 
@@ -403,31 +390,31 @@ export default function App() {
 
   if (!authReady) {
     return (
-      <div className="flex h-screen items-center justify-center bg-slate-50 text-sm text-slate-500">
-        {t("common.loading")}
+      <div className="flex h-screen items-center justify-center bg-slate-50 text-xs text-slate-500 font-mono">
+        <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white/90 px-6 py-3.5 shadow-lg backdrop-blur-md">
+          <span className="size-4 animate-spin rounded-full border-2 border-indigo-600 border-t-transparent" />
+          <span className="font-semibold text-slate-800">{t("common.loading")}</span>
+        </div>
       </div>
     );
   }
 
   if (authEnabled && !authenticated) {
     return (
-      <div className="relative flex h-screen w-full items-center justify-center overflow-hidden bg-neutral-100">
-        <div
-          className="pointer-events-none absolute inset-0 opacity-70"
-          style={{
-            background:
-              "radial-gradient(ellipse 80% 50% at 50% -20%, #d4d4d4, transparent), radial-gradient(ellipse 60% 40% at 100% 100%, #e5e5e5, transparent)",
-          }}
-        />
+      <div className="relative flex min-h-screen w-full items-center justify-center overflow-hidden bg-slate-50 px-4 dot-grid">
+        {/* Ambient Aura Glowing Lights */}
+        <div className="aura-glow top-1/4 left-1/3 size-[500px] bg-indigo-300/40" />
+        <div className="aura-glow bottom-1/4 right-1/3 size-[450px] bg-purple-300/35" />
+
         <form
           onSubmit={handleLogin}
-          className="relative z-10 w-full max-w-sm rounded-2xl border border-slate-200/80 bg-white p-8 shadow-lg shadow-slate-200/50"
+          className="glass-card relative z-10 w-full max-w-sm rounded-2xl border border-slate-200/90 p-8 shadow-2xl"
         >
           <div className="mb-6 flex flex-col items-center text-center">
-            <div className="mb-3 flex size-12 items-center justify-center rounded-xl bg-neutral-900 text-white">
-              <Lock className="size-5" />
+            <div className="mb-3 flex size-12 items-center justify-center rounded-xl bg-gradient-to-tr from-slate-950 via-slate-900 to-indigo-950 text-white shadow-md shadow-indigo-950/20">
+              <Lock className="size-5 text-indigo-200" />
             </div>
-            <h1 className="text-lg font-bold tracking-tight text-slate-900">
+            <h1 className="text-xl font-extrabold tracking-tight text-slate-900">
               nodeFileView
             </h1>
             <p className="mt-1 text-xs text-slate-500">{t("login.subtitle")}</p>
@@ -435,38 +422,48 @@ export default function App() {
           <div className="mb-4">
             <LanguageSelect locale={locale} setLocale={setLocale} t={t} />
           </div>
-          <div className="space-y-3">
+          <div className="space-y-3.5">
             <div className="space-y-1.5">
-              <Label htmlFor="login-user">{t("login.user")}</Label>
+              <Label htmlFor="login-user" className="text-xs font-semibold text-slate-700">
+                {t("login.user")}
+              </Label>
               <Input
                 id="login-user"
                 autoComplete="username"
+                className="border-slate-200 bg-white/90 text-slate-900 placeholder:text-slate-400 focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10 rounded-xl"
                 value={loginUser}
                 onChange={(e) => setLoginUser(e.target.value)}
                 required
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="login-pass">{t("login.pass")}</Label>
+              <Label htmlFor="login-pass" className="text-xs font-semibold text-slate-700">
+                {t("login.pass")}
+              </Label>
               <Input
                 id="login-pass"
                 type="password"
                 autoComplete="current-password"
+                className="border-slate-200 bg-white/90 text-slate-900 focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10 rounded-xl"
                 value={loginPass}
                 onChange={(e) => setLoginPass(e.target.value)}
                 required
               />
             </div>
             {loginError && (
-              <p className="text-xs text-neutral-900" role="alert">
+              <p className="text-xs text-rose-700 bg-rose-50 border border-rose-200 p-2.5 rounded-xl" role="alert">
                 {loginError}
               </p>
             )}
-            <Button type="submit" className="w-full" disabled={loginBusy}>
+            <Button
+              type="submit"
+              className="w-full bg-slate-900 text-white hover:bg-slate-800 shadow-md shadow-slate-900/15 font-semibold rounded-xl py-2.5 transition-all active:scale-[0.98] cursor-pointer"
+              disabled={loginBusy}
+            >
               {loginBusy ? t("login.submitting") : t("login.submit")}
             </Button>
           </div>
-          <p className="mt-5 whitespace-pre-line text-center text-[10px] leading-relaxed text-slate-400">
+          <p className="mt-5 whitespace-pre-line text-center text-[11px] leading-relaxed text-slate-400">
             {t("login.hint")}
           </p>
         </form>
@@ -475,214 +472,166 @@ export default function App() {
   }
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-slate-50 text-slate-900">
-      <aside className="z-30 flex w-64 shrink-0 flex-col border-r border-slate-200/80 bg-white">
-        <div className="flex h-14 items-center justify-between border-b border-slate-100 px-5">
-          <div className="flex items-center gap-2.5">
-            <div className="flex size-7 items-center justify-center rounded-lg bg-neutral-900 text-xs font-bold text-white">
-              nF
-            </div>
-            <div className="flex flex-col">
-              <span className="text-sm leading-none font-bold tracking-tight">
-                nodeFileView
-              </span>
-              <span className="mt-1 text-[10px] text-slate-400">Light Sandbox</span>
-            </div>
-          </div>
-          {authEnabled ? (
-            <Lock className="size-3.5 text-slate-400" />
-          ) : (
-            <span className="size-1.5 animate-pulse rounded-full bg-neutral-900" />
-          )}
-        </div>
+    <div className="min-h-screen w-full bg-[#f8fafc] text-slate-900 flex flex-col font-sans relative dot-grid">
+      {/* Ambient Moving Aura Glowing Lights isolated in a non-scrolling layer */}
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="aura-glow-1 top-[-100px] left-1/4 size-[600px] bg-gradient-to-tr from-indigo-300/35 via-violet-300/30 to-sky-300/25" />
+        <div className="aura-glow-2 top-48 -right-16 size-[550px] bg-gradient-to-br from-blue-300/30 via-teal-200/25 to-indigo-300/20" />
+        <div className="aura-glow-3 -bottom-24 -left-20 size-[650px] bg-gradient-to-tr from-purple-300/25 via-pink-200/20 to-indigo-300/25" />
+      </div>
 
-        <nav className="flex-1 space-y-5 overflow-y-auto p-3">
-          {navGroups.map((group) => (
-            <div key={group} className="space-y-1">
-              <p className="px-2 pb-1 text-[10px] font-semibold tracking-wide text-slate-400 uppercase">
-                {group}
-              </p>
-              {navItems
-                .filter((item) => item.group === group)
-                .map((item) => {
-                  const Icon = item.icon;
-                  const active = activeTab === item.id;
-                  return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => setActiveTab(item.id)}
-                      className={cn(
-                        "flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs transition",
-                        active
-                          ? "bg-neutral-900 font-semibold text-white shadow-xs"
-                          : "text-slate-600 hover:bg-slate-50",
-                      )}
-                    >
-                      <Icon className="size-3.5 shrink-0" />
-                      <span className="truncate">{item.label}</span>
-                      {item.id === "files" && total > 0 && (
-                        <Badge
-                          variant="secondary"
-                          className="ml-auto h-5 min-w-5 justify-center px-1.5 text-[10px]"
-                        >
-                          {total}
-                        </Badge>
-                      )}
-                    </button>
-                  );
-                })}
-            </div>
-          ))}
-        </nav>
-
-        <div className="space-y-2 border-t border-slate-100 p-4 text-[11px] text-slate-500">
-          <div className="flex items-center justify-between">
-            <span>{t("nav.engineStatus")}</span>
-            <span className="font-medium text-neutral-900">{t("common.ready")}</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span>{t("nav.cacheHit")}</span>
-            <span className="font-mono">
-              {monitorStats?.cacheHitRateText || configHintsReady(config)}
+      {/* Top Minimalist Crystal Navbar */}
+      <header className="sticky top-0 z-40 w-full border-b border-slate-200/75 bg-white/80 backdrop-blur-xl transition-colors shadow-2xs">
+        <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4 sm:px-6 gap-4 select-none">
+          {/* Left: Brand Identity */}
+          <button
+            type="button"
+            onClick={() => setActiveTab("home")}
+            className="flex items-center gap-2.5 transition-all hover:opacity-85 cursor-pointer select-none group shrink-0 active:scale-95"
+          >
+            <FilePreviewLogo size={28} className="size-7 group-hover:scale-105 transition-transform rounded-lg" />
+            <span className="text-sm font-bold tracking-tight text-slate-900">
+              {t("nav.brand")}
             </span>
-          </div>
-          {authEnabled && (
-            <button
-              type="button"
-              onClick={() => void handleLogout()}
-              className="mt-1 flex w-full items-center justify-center gap-1.5 rounded-lg border border-slate-200 px-2 py-1.5 text-slate-600 transition hover:bg-slate-50"
-            >
-              <LogOut className="size-3" />
-              {t("nav.logout", { user: authUser || t("nav.loginFallback") })}
-            </button>
-          )}
-        </div>
-      </aside>
-
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-        <header className="z-20 flex h-14 shrink-0 items-center justify-between border-b border-slate-200/80 bg-white px-6">
-          <div className="flex items-center gap-2 text-xs">
-            <span className="text-slate-400">{t("nav.console")}</span>
-            <span className="text-slate-300">/</span>
-            <span className="font-semibold text-slate-800">
-              {navTitles[activeTab]}
+            <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-emerald-50/90 border border-emerald-200/80 px-2 py-0.5 text-[10px] font-medium text-emerald-700 shadow-2xs">
+              <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              {t("common.ready")}
             </span>
-          </div>
-          <div className="flex items-center gap-2">
+          </button>
+
+          {/* Center: Sleek Segmented Navigation with Stable Metrics */}
+          <nav className="flex items-center gap-1 rounded-full bg-slate-100/90 p-1 border border-slate-200/70 shadow-inner shrink-0">
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              const active = activeTab === item.id;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setActiveTab(item.id)}
+                  className={cn(
+                    "relative flex items-center gap-1.5 rounded-full px-3.5 py-1 text-xs font-semibold whitespace-nowrap transition-all duration-200 select-none cursor-pointer shrink-0 active:scale-95",
+                    active
+                      ? "bg-white text-slate-900 shadow-[0_2px_8px_rgba(0,0,0,0.06),0_0_12px_rgba(99,102,241,0.18)] ring-1 ring-slate-200/80"
+                      : "text-slate-500 hover:text-slate-900 hover:bg-white/60"
+                  )}
+                >
+                  <Icon className={cn("size-3.5 transition-colors", active ? "text-indigo-600" : "text-slate-400")} />
+                  <span>{item.label}</span>
+                </button>
+              );
+            })}
+          </nav>
+
+          {/* Right: Minimalist Tools (Language + Auth) */}
+          <div className="flex items-center gap-2.5 shrink-0">
             <LanguageSelect locale={locale} setLocale={setLocale} t={t} compact />
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={monitorBusy}
-              onClick={() => void purgeAllCache()}
-            >
-              <RefreshCw className="size-3.5" />
-              {t("nav.purgeCache")}
-            </Button>
-            <Button
-              size="sm"
-              disabled={busy}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <Upload className="size-3.5" />
-              {t("nav.upload")}
-            </Button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              className="hidden"
-              disabled={busy}
-              onChange={(e) => {
-                void handleUpload(e.target.files);
-                e.target.value = "";
-              }}
-            />
+
+            {authEnabled && (
+              <div className="flex items-center gap-1 pl-1.5 border-l border-slate-200">
+                <span className="text-xs text-slate-500 font-mono hidden md:inline px-1">
+                  {authUser || "admin"}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => void handleLogout()}
+                  className="flex items-center justify-center size-7 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer active:scale-90"
+                  title={t("nav.logout", { user: authUser || t("nav.loginFallback") })}
+                >
+                  <LogOut className="size-3.5" />
+                </button>
+              </div>
+            )}
           </div>
-        </header>
+        </div>
+      </header>
 
-        <main
-          className={cn(
-            "dot-grid min-h-0 flex-1 p-6",
-            activeTab === "files" ? "overflow-hidden" : "overflow-y-auto",
-          )}
-        >
-          {activeTab === "home" && (
-            <HomePage config={config} onGo={(tab) => setActiveTab(tab)} />
-          )}
+      {/* Global Hidden File Input */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        className="hidden"
+        disabled={busy}
+        onChange={(e) => {
+          void handleUpload(e.target.files);
+          e.target.value = "";
+        }}
+      />
 
-          {activeTab === "files" && (
-            <div className="grid h-full min-h-0 gap-5 lg:grid-cols-[1.4fr_0.9fr]">
-              <Card className="flex min-h-0 flex-col overflow-hidden">
-                <CardHeader className="flex shrink-0 flex-row items-start justify-between gap-3 space-y-0">
+      {/* Main Content Area with Smooth Page Entry Animation */}
+      <main className="relative z-10 flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 py-8">
+        <div key={activeTab} className="animate-page-enter">
+        {activeTab === "home" && (
+          <HomePage config={config} onGo={(tab) => setActiveTab(tab)} />
+        )}
+
+        {activeTab === "files" && (
+          <div className="space-y-6">
+            {/* Action Bar & Quick Upload Header */}
+            <div className="glass-card flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between rounded-2xl p-4">
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  <Search className="text-slate-400 absolute top-2.5 left-3 size-4" />
+                  <Input
+                    className="w-64 border-slate-200 bg-white/90 pl-9 text-xs text-slate-900 placeholder:text-slate-400 focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10 rounded-xl md:w-80"
+                    placeholder={t("files.searchPlaceholder")}
+                    value={q}
+                    onChange={(e) => {
+                      setPage(1);
+                      setQ(e.target.value);
+                    }}
+                  />
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-300 shadow-2xs text-xs rounded-xl"
+                  disabled={busy}
+                  onClick={() => void refresh()}
+                >
+                  <RefreshCw className="size-3.5 mr-1" />
+                  {t("common.refresh")}
+                </Button>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <p className="text-xs text-slate-500 hidden lg:block">
+                  {t("files.dropHint")}
+                </p>
+                <Button
+                  size="sm"
+                  className="bg-slate-900 text-white hover:bg-slate-800 shadow-sm font-bold text-xs rounded-xl px-4"
+                  disabled={busy}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <FileUp className="size-3.5 mr-1.5" />
+                  {t("files.chooseFile")}
+                </Button>
+              </div>
+            </div>
+
+            {/* Files Master Workbench */}
+            <div className="grid gap-6 lg:grid-cols-[1.5fr_0.8fr]">
+              <div className="glass-card rounded-2xl overflow-hidden shadow-sm">
+                <div className="flex flex-row items-center justify-between border-b border-slate-200/80 p-4 py-3.5 bg-white/70">
                   <div>
-                    <CardTitle>{t("files.title")}</CardTitle>
-                    <CardDescription>{t("files.desc")}</CardDescription>
+                    <h2 className="text-sm font-bold text-slate-900">{t("files.title")}</h2>
+                    <p className="text-xs text-slate-500 mt-0.5">{t("files.desc")}</p>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <div className="relative">
-                      <Search className="text-muted-foreground absolute top-2.5 left-2.5 size-4" />
-                      <Input
-                        className="w-40 pl-8 md:w-48"
-                        placeholder={t("files.searchPlaceholder")}
-                        value={q}
-                        onChange={(e) => {
-                          setPage(1);
-                          setQ(e.target.value);
-                        }}
-                      />
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      disabled={busy}
-                      onClick={() => void refresh()}
-                    >
-                      <RefreshCw className="size-4" />
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
-                  <div
-                    className={cn(
-                      "shrink-0 rounded-xl border border-dashed p-5 text-center transition-colors",
-                      dragOver
-                        ? "border-primary bg-primary/5"
-                        : "border-border bg-muted/30",
-                    )}
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      setDragOver(true);
-                    }}
-                    onDragLeave={() => setDragOver(false)}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      setDragOver(false);
-                      void handleUpload(e.dataTransfer.files);
-                    }}
-                  >
-                    <FileUp className="text-muted-foreground mx-auto mb-2 size-7" />
-                    <p className="text-sm font-medium">{t("files.dropHint")}</p>
-                    <div className="mt-3">
-                      <Button
-                        size="sm"
-                        disabled={busy}
-                        onClick={() => fileInputRef.current?.click()}
-                      >
-                        {t("files.chooseFile")}
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div className="min-h-0 flex-1 overflow-auto rounded-lg border">
+                  <Badge className="font-mono text-xs border border-indigo-200 bg-indigo-50 text-indigo-700">
+                    {total} Files
+                  </Badge>
+                </div>
+                <div>
+                  <div className="overflow-x-auto">
                     <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>{t("files.colName")}</TableHead>
-                          <TableHead>{t("files.colType")}</TableHead>
-                          <TableHead>{t("files.colSize")}</TableHead>
-                          <TableHead>{t("files.colTime")}</TableHead>
-                          <TableHead className="text-right">
+                      <TableHeader className="bg-slate-50/80 border-b border-slate-200/80">
+                        <TableRow className="hover:bg-transparent">
+                          <TableHead className="text-xs font-semibold text-slate-700">{t("files.colName")}</TableHead>
+                          <TableHead className="text-xs font-semibold text-slate-700">{t("files.colType")}</TableHead>
+                          <TableHead className="text-xs font-semibold text-slate-700">{t("files.colSize")}</TableHead>
+                          <TableHead className="text-xs font-semibold text-slate-700">{t("files.colTime")}</TableHead>
+                          <TableHead className="text-right text-xs font-semibold text-slate-700">
                             {t("files.colActions")}
                           </TableHead>
                         </TableRow>
@@ -692,28 +641,31 @@ export default function App() {
                           <TableRow>
                             <TableCell
                               colSpan={5}
-                              className="text-muted-foreground py-8 text-center"
+                              className="py-12 text-center text-xs text-slate-400"
                             >
                               {t("files.empty")}
                             </TableCell>
                           </TableRow>
                         ) : (
                           files.map((f) => (
-                            <TableRow key={f.fileId}>
-                              <TableCell className="max-w-[180px] truncate font-medium">
+                            <TableRow key={f.fileId} className="border-b border-slate-100 hover:bg-indigo-50/40 transition-colors">
+                              <TableCell className="max-w-[200px] truncate font-medium text-slate-900 text-xs">
                                 {f.name}
                               </TableCell>
-                              <TableCell className="font-mono text-xs">
-                                .{f.ext}
+                              <TableCell>
+                                <span className="font-mono text-[10px] border border-slate-200 bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md font-semibold">
+                                  .{f.ext}
+                                </span>
                               </TableCell>
-                              <TableCell>{formatSize(f.size)}</TableCell>
-                              <TableCell className="text-muted-foreground text-xs">
+                              <TableCell className="font-mono text-xs text-slate-500">{formatSize(f.size)}</TableCell>
+                              <TableCell className="text-xs text-slate-500">
                                 {new Date(f.createdAt).toLocaleString(locale)}
                               </TableCell>
                               <TableCell className="text-right">
                                 <div className="flex justify-end gap-2">
                                   <Button
                                     size="sm"
+                                    className="bg-slate-900 text-white hover:bg-slate-800 text-xs h-7 px-3 font-semibold rounded-lg shadow-2xs"
                                     disabled={busy}
                                     onClick={() => void previewLocal(f)}
                                   >
@@ -721,7 +673,8 @@ export default function App() {
                                   </Button>
                                   <Button
                                     size="sm"
-                                    variant="destructive"
+                                    variant="outline"
+                                    className="border-slate-200 bg-white text-slate-500 hover:text-rose-600 hover:bg-rose-50 hover:border-rose-200 h-7 w-7 p-0 rounded-lg transition-colors"
                                     disabled={busy}
                                     onClick={() => void handleDelete(f.fileId)}
                                   >
@@ -736,8 +689,8 @@ export default function App() {
                     </Table>
                   </div>
 
-                  <div className="flex shrink-0 items-center justify-between gap-3">
-                    <p className="text-muted-foreground text-xs">
+                  <div className="flex items-center justify-between border-t border-slate-200/80 p-4 bg-white/50">
+                    <p className="text-xs text-slate-500">
                       {t("files.pageInfo", {
                         total,
                         page,
@@ -748,6 +701,7 @@ export default function App() {
                       <Button
                         variant="outline"
                         size="sm"
+                        className="border-slate-200 bg-white text-slate-700 hover:bg-slate-50 shadow-2xs text-xs rounded-xl"
                         disabled={page <= 1 || busy}
                         onClick={() => setPage((p) => Math.max(1, p - 1))}
                       >
@@ -756,6 +710,7 @@ export default function App() {
                       <Button
                         variant="outline"
                         size="sm"
+                        className="border-slate-200 bg-white text-slate-700 hover:bg-slate-50 shadow-2xs text-xs rounded-xl"
                         disabled={page >= totalPages || busy}
                         onClick={() => setPage((p) => p + 1)}
                       >
@@ -763,16 +718,17 @@ export default function App() {
                       </Button>
                     </div>
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+              </div>
 
-              <div className="min-h-0 space-y-5 overflow-y-auto">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>{t("files.paramsTitle")}</CardTitle>
-                    <CardDescription>{t("files.paramsDesc")}</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
+              {/* Side Parameters & Formats Panel */}
+              <div className="space-y-6">
+                <div className="glass-card rounded-2xl p-5 space-y-4 shadow-sm">
+                  <div className="border-b border-slate-100 pb-3">
+                    <h3 className="text-sm font-bold text-slate-900">{t("files.paramsTitle")}</h3>
+                    <p className="text-xs text-slate-500 mt-0.5">{t("files.paramsDesc")}</p>
+                  </div>
+                  <div className="space-y-3.5">
                     <ParamFields
                       remoteUrl={remoteUrl}
                       setRemoteUrl={setRemoteUrl}
@@ -791,12 +747,17 @@ export default function App() {
                       forceUpdatedCache={forceUpdatedCache}
                       setForceUpdatedCache={setForceUpdatedCache}
                     />
-                    <div className="flex flex-wrap gap-2">
-                      <Button disabled={busy} onClick={() => void onGenerate()}>
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      <Button 
+                        disabled={busy} 
+                        className="bg-slate-900 text-white hover:bg-slate-800 font-semibold text-xs rounded-xl shadow-sm px-4"
+                        onClick={() => void onGenerate()}
+                      >
                         {t("files.generate")}
                       </Button>
                       <Button
                         variant="outline"
+                        className="border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-300 text-xs rounded-xl shadow-2xs"
                         disabled={busy || !generatedLink}
                         onClick={() =>
                           window.open(generatedLink, "_blank", "noopener,noreferrer")
@@ -806,556 +767,568 @@ export default function App() {
                       </Button>
                     </div>
                     {generatedLink && (
-                      <pre className="bg-muted overflow-x-auto rounded-md border p-3 font-mono text-xs break-all whitespace-pre-wrap">
-                        {generatedLink}
-                      </pre>
+                      <div className="terminal-obsidian p-3 rounded-xl">
+                        <pre className="font-mono text-xs text-slate-200 break-all whitespace-pre-wrap">
+                          {generatedLink}
+                        </pre>
+                      </div>
                     )}
-                  </CardContent>
-                </Card>
+                  </div>
+                </div>
 
-                <Card>
-                  <CardHeader>
-                    <CardTitle>{t("files.formatsTitle")}</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
+                <div className="glass-card rounded-2xl p-5 space-y-3.5 shadow-sm">
+                  <h3 className="text-sm font-bold text-slate-900 border-b border-slate-100 pb-2.5">
+                    {t("files.formatsTitle")}
+                  </h3>
+                  <div className="space-y-3">
                     {formatGroups.map((g, i) => (
                       <div key={g.title}>
-                        {i > 0 && <Separator className="mb-3" />}
-                        <p className="text-sm font-medium">{g.title}</p>
-                        <p className="text-muted-foreground text-xs">{g.desc}</p>
+                        {i > 0 && <Separator className="my-2.5 bg-slate-100" />}
+                        <p className="text-xs font-semibold text-slate-800">{g.title}</p>
+                        <p className="mt-0.5 text-xs text-slate-500 leading-relaxed font-normal">{g.desc}</p>
                       </div>
                     ))}
-                  </CardContent>
-                </Card>
+                  </div>
+                </div>
               </div>
             </div>
-          )}
+          </div>
+        )}
 
-          {activeTab === "playground" && (
-            <div className="mx-auto max-w-3xl space-y-5">
-              <Card>
-                <CardHeader>
-                  <CardTitle>{t("playground.title")}</CardTitle>
-                  <CardDescription>{t("playground.desc")}</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <ParamFields
-                    remoteUrl={remoteUrl}
-                    setRemoteUrl={setRemoteUrl}
-                    watermarkTxt={watermarkTxt}
-                    setWatermarkTxt={setWatermarkTxt}
-                    pageNo={pageNo}
-                    setPageNo={setPageNo}
-                    highlight={highlight}
-                    setHighlight={setHighlight}
-                    password={password}
-                    setPassword={setPassword}
-                    ftpHost={ftpHost}
-                    setFtpHost={setFtpHost}
-                    useAes={useAes}
-                    setUseAes={setUseAes}
-                    forceUpdatedCache={forceUpdatedCache}
-                    setForceUpdatedCache={setForceUpdatedCache}
-                  />
-                  <div className="flex flex-wrap gap-2">
-                    <Button disabled={busy} onClick={() => void onGenerate()}>
-                      {t("files.generate")}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      disabled={busy || !generatedLink}
-                      onClick={() =>
-                        window.open(generatedLink, "_blank", "noopener,noreferrer")
-                      }
-                    >
-                      {t("files.openPreview")}
-                    </Button>
+        {activeTab === "playground" && (
+          <div className="grid gap-6 lg:grid-cols-2">
+            <div className="glass-card rounded-2xl p-6 space-y-5 shadow-sm">
+              <div className="border-b border-slate-100 pb-3">
+                <h2 className="text-base font-bold text-slate-900">{t("playground.title")}</h2>
+                <p className="text-xs text-slate-500 mt-0.5">{t("playground.desc")}</p>
+              </div>
+              <div className="space-y-4">
+                <ParamFields
+                  remoteUrl={remoteUrl}
+                  setRemoteUrl={setRemoteUrl}
+                  watermarkTxt={watermarkTxt}
+                  setWatermarkTxt={setWatermarkTxt}
+                  pageNo={pageNo}
+                  setPageNo={setPageNo}
+                  highlight={highlight}
+                  setHighlight={setHighlight}
+                  password={password}
+                  setPassword={setPassword}
+                  ftpHost={ftpHost}
+                  setFtpHost={setFtpHost}
+                  useAes={useAes}
+                  setUseAes={setUseAes}
+                  forceUpdatedCache={forceUpdatedCache}
+                  setForceUpdatedCache={setForceUpdatedCache}
+                />
+                <div className="flex flex-wrap gap-2.5 pt-2">
+                  <Button 
+                    disabled={busy} 
+                    className="bg-slate-900 text-white hover:bg-slate-800 font-semibold text-xs px-5 rounded-xl shadow-sm cursor-pointer"
+                    onClick={() => void onGenerate()}
+                  >
+                    {t("files.generate")}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="border-slate-200 bg-white text-slate-800 hover:bg-slate-50 hover:border-slate-300 text-xs px-4 rounded-xl shadow-2xs cursor-pointer"
+                    disabled={busy || !generatedLink}
+                    onClick={() =>
+                      window.open(generatedLink, "_blank", "noopener,noreferrer")
+                    }
+                  >
+                    {t("files.openPreview")}
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-6">
+              <div className="glass-card rounded-2xl p-6 space-y-4 shadow-sm">
+                <div className="border-b border-slate-100 pb-3">
+                  <h3 className="text-sm font-bold text-slate-900">{t("playground.renderTitle")}</h3>
+                </div>
+                <div className="rounded-xl border border-slate-200/90 bg-white/80 p-4 font-mono text-xs leading-relaxed text-slate-700 space-y-2.5 shadow-2xs">
+                  <div className="flex justify-between border-b border-slate-100 pb-2">
+                    <span className="text-slate-400">Watermark:</span>
+                    <span className="font-semibold text-slate-900">{watermarkTxt || "-"}</span>
                   </div>
-                  {generatedLink && (
-                    <pre className="bg-muted overflow-x-auto rounded-md border p-3 font-mono text-xs break-all whitespace-pre-wrap">
+                  <div className="flex justify-between border-b border-slate-100 pb-2">
+                    <span className="text-slate-400">Encryption:</span>
+                    <span className="font-semibold text-slate-900">{useAes ? "AES Enabled" : "Plain Text"}</span>
+                  </div>
+                  <div className="flex justify-between border-b border-slate-100 pb-2">
+                    <span className="text-slate-400">Page:</span>
+                    <span className="font-semibold text-slate-900">{pageNo || "1"}</span>
+                  </div>
+                  <div className="flex justify-between border-b border-slate-100 pb-2">
+                    <span className="text-slate-400">Highlight:</span>
+                    <span className="font-semibold text-slate-900">{highlight || "-"}</span>
+                  </div>
+                  <div className="flex justify-between border-b border-slate-100 pb-2">
+                    <span className="text-slate-400">Cache Policy:</span>
+                    <span className="font-semibold text-slate-900">
+                      {forceUpdatedCache ? "BYPASS_CACHE" : "CACHE_HIT_ALLOWED"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between pt-0.5">
+                    <span className="text-slate-400">Lang:</span>
+                    <span className="font-semibold text-slate-900">{locale}</span>
+                  </div>
+                </div>
+              </div>
+
+              {generatedLink && (
+                <div className="glass-card rounded-2xl p-6 space-y-3 shadow-sm">
+                  <div className="border-b border-slate-100 pb-2.5">
+                    <h3 className="text-xs font-mono font-bold text-slate-800">Generated Target URL</h3>
+                  </div>
+                  <div className="terminal-obsidian p-3.5 rounded-xl">
+                    <pre className="font-mono text-xs text-slate-200 break-all whitespace-pre-wrap">
                       {generatedLink}
                     </pre>
-                  )}
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>{t("playground.renderTitle")}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="rounded-xl border bg-muted/30 p-3 font-mono text-xs break-all space-y-1">
-                    <div>Watermark: {watermarkTxt || "-"}</div>
-                    <div>Encryption: {useAes ? "AES Enabled" : "Plain Text"}</div>
-                    <div>Page: {pageNo || "1"}</div>
-                    <div>Highlight: {highlight || "-"}</div>
-                    <div>
-                      Cache Policy:{" "}
-                      {forceUpdatedCache ? "BYPASS_CACHE" : "CACHE_HIT_ALLOWED"}
-                    </div>
-                    <div>Lang: {locale}</div>
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+              )}
             </div>
-          )}
+          </div>
+        )}
 
-          {activeTab === "settings" && (
-            <div className="mx-auto max-w-5xl space-y-5">
-              <Card>
-                <CardHeader>
-                  <CardTitle>{t("settings.title")}</CardTitle>
-                  <CardDescription>{t("settings.desc")}</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {!config ? (
-                    <p className="text-muted-foreground text-xs">
-                      {t("settings.loading")}
-                    </p>
-                  ) : (
-                    <div className="grid gap-3 md:grid-cols-2">
-                      <div className="space-y-2 rounded-xl border bg-muted/30 p-4 text-xs">
-                        <div>
-                          {t("settings.listen")}：{" "}
-                          <span className="font-mono">
-                            {config.host}:{config.port}
-                          </span>
-                        </div>
-                        <div>
-                          BASE_URL：{" "}
-                          <span className="font-mono break-all">
-                            {config.baseUrl || t("common.unset")}
-                          </span>
-                        </div>
-                        <div>
-                          TRUST_HOST：{" "}
-                          <span className="font-mono break-all">
-                            {config.trustHost?.length
-                              ? config.trustHost.join(", ")
-                              : t("settings.trustHostUnlimited")}
-                          </span>
-                        </div>
-                        <div>
-                          {t("settings.maxUpload")}：{" "}
-                          <span className="font-mono">{config.maxUploadSizeMb}MB</span>
-                        </div>
-                        <div>
-                          LibreOffice：{" "}
-                          <span className="font-mono">
-                            {config.libreOfficePath || "soffice"}
-                          </span>
-                        </div>
-                        <div>
-                          {t("settings.convertTimeout")}：{" "}
-                          <span className="font-mono">
-                            {config.convertTimeoutMs || 120000}ms
-                          </span>
-                        </div>
-                      </div>
-                      <div className="space-y-2 rounded-xl border bg-muted/30 p-4 text-xs">
-                        <div>
-                          AES：{" "}
-                          <span className="font-mono">
-                            {config.aesEnabled
-                              ? t("common.enabled")
-                              : t("common.disabled")}
-                          </span>
-                        </div>
-                        <div>
-                          Basic Auth：{" "}
-                          <span className="font-mono">
-                            {config.basicAuthEnabled
-                              ? t("common.enabled")
-                              : t("common.disabled")}
-                          </span>
-                        </div>
-                        <div>
-                          {t("settings.previewPassword")}：{" "}
-                          <span className="font-mono">
-                            {config.previewPasswordEnabled
-                              ? t("common.enabled")
-                              : t("common.disabled")}
-                          </span>
-                        </div>
-                        <div>
-                          {t("settings.allowEmbed")}：{" "}
-                          <span className="font-mono">
-                            {config.allowEmbed
-                              ? t("common.enabled")
-                              : t("common.disabled")}
-                          </span>
-                        </div>
-                        <div>
-                          {t("settings.blockPrivate")}：{" "}
-                          <span className="font-mono">
-                            {config.blockPrivateIp
-                              ? t("common.enabled")
-                              : t("common.disabled")}
-                          </span>
-                        </div>
-                        <div>
-                          {t("settings.rateLimit")}：{" "}
-                          <span className="font-mono">
-                            {config.rateLimitMax}/{config.rateLimitWindowMs}ms
-                          </span>
-                        </div>
-                        <div>
-                          {t("settings.ftp")}：{" "}
-                          <span className="font-mono">
-                            {config.ftpEnabled
-                              ? t("common.enabled")
-                              : t("settings.ftpDisabled")}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="space-y-3 rounded-xl border p-4">
-                    <p className="text-sm font-medium">{t("settings.cacheTitle")}</p>
-                    {monitorStats ? (
-                      <div className="grid gap-2 text-xs md:grid-cols-3">
-                        <div className="rounded-lg bg-muted/40 p-3">
-                          <div className="text-muted-foreground">
-                            {t("settings.cacheConvert")}
-                          </div>
-                          <div className="mt-1 font-mono">
-                            {t("settings.countSize", {
-                              count: monitorStats.cache.convert.count,
-                              size: formatSize(monitorStats.cache.convert.bytes),
-                            })}
-                          </div>
-                        </div>
-                        <div className="rounded-lg bg-muted/40 p-3">
-                          <div className="text-muted-foreground">
-                            {t("settings.cacheRemote")}
-                          </div>
-                          <div className="mt-1 font-mono">
-                            {t("settings.countSize", {
-                              count: monitorStats.cache.remote.count,
-                              size: formatSize(monitorStats.cache.remote.bytes),
-                            })}
-                          </div>
-                        </div>
-                        <div className="rounded-lg bg-muted/40 p-3">
-                          <div className="text-muted-foreground">
-                            {t("settings.cacheTemp")}
-                          </div>
-                          <div className="mt-1 font-mono">
-                            {t("settings.countSize", {
-                              count: monitorStats.cache.temp.count,
-                              size: formatSize(monitorStats.cache.temp.bytes),
-                            })}
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      <p className="text-muted-foreground text-xs">
-                        {t("settings.cacheLoading")}
-                      </p>
-                    )}
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={monitorBusy}
-                        onClick={async () => {
-                          setMonitorBusy(true);
-                          try {
-                            await clearMonitorCache("convert");
-                            await refreshMonitor();
-                            setMessage({
-                              type: "ok",
-                              text: t("settings.clearedConvert"),
-                            });
-                          } catch (err) {
-                            setMessage({
-                              type: "err",
-                              text:
-                                err instanceof Error
-                                  ? err.message
-                                  : t("files.purgeFailed"),
-                            });
-                          } finally {
-                            setMonitorBusy(false);
-                          }
-                        }}
-                      >
-                        {t("settings.clearConvert")}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={monitorBusy}
-                        onClick={async () => {
-                          setMonitorBusy(true);
-                          try {
-                            await clearMonitorCache("remote");
-                            await refreshMonitor();
-                            setMessage({
-                              type: "ok",
-                              text: t("settings.clearedRemote"),
-                            });
-                          } catch (err) {
-                            setMessage({
-                              type: "err",
-                              text:
-                                err instanceof Error
-                                  ? err.message
-                                  : t("files.purgeFailed"),
-                            });
-                          } finally {
-                            setMonitorBusy(false);
-                          }
-                        }}
-                      >
-                        {t("settings.clearRemote")}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={monitorBusy}
-                        onClick={() => void purgeAllCache()}
-                      >
-                        {t("settings.clearAll")}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={busy}
-                        onClick={async () => {
-                          try {
-                            const c = await fetchPublicConfig();
-                            setConfig(c);
-                            setMessage({
-                              type: "ok",
-                              text: t("settings.configRefreshed"),
-                            });
-                          } catch (err) {
-                            setMessage({
-                              type: "err",
-                              text:
-                                err instanceof Error
-                                  ? err.message
-                                  : t("settings.refreshFailed"),
-                            });
-                          }
-                        }}
-                      >
-                        {t("settings.refreshConfig")}
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          )}
-
-          {activeTab === "monitor" && (
-            <div className="mx-auto max-w-5xl space-y-4">
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
-                <StatCard
-                  label={t("monitor.previewToday")}
-                  value={String(monitorStats?.previewToday ?? "—")}
-                  hint={t("monitor.previewHint", {
-                    total: monitorStats?.previewTotal ?? 0,
-                    uptime: monitorStats?.uptimeText || "—",
-                  })}
-                />
-                <StatCard
-                  label={t("monitor.hitRate")}
-                  value={monitorStats?.cacheHitRateText || "—"}
-                  hint={`hit ${monitorStats?.cacheHits ?? 0} / miss ${monitorStats?.cacheMisses ?? 0}`}
-                  valueClass="text-neutral-900"
-                />
-                <StatCard
-                  label={t("monitor.avgConvert")}
-                  value={monitorStats ? `${monitorStats.avgConvertMs} ms` : "—"}
-                  hint={t("monitor.convertHint", {
-                    count: monitorStats?.convertTotal ?? 0,
-                  })}
-                  valueClass="text-neutral-900"
-                />
-                <StatCard
-                  label={t("monitor.convertErrors")}
-                  value={t("monitor.errorsUnit", {
-                    count: monitorStats?.convertErrors ?? "—",
-                  })}
-                  hint={
-                    monitorStats
-                      ? t("monitor.cacheBytes", {
-                          size: formatSize(monitorStats.cache.totalBytes),
-                        })
-                      : "—"
-                  }
-                  valueClass="text-neutral-900"
-                />
+        {activeTab === "settings" && (
+          <div className="space-y-6">
+            <div className="glass-card rounded-2xl p-6 space-y-6 shadow-sm">
+              <div className="border-b border-slate-100 pb-3">
+                <h2 className="text-base font-bold text-slate-900">{t("settings.title")}</h2>
+                <p className="text-xs text-slate-500 mt-0.5">{t("settings.desc")}</p>
               </div>
-
-              <Card className="overflow-hidden">
-                <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0 border-b py-3">
-                  <div>
-                    <CardTitle className="text-sm">{t("monitor.logsTitle")}</CardTitle>
-                    <CardDescription>
-                      {t("monitor.logsCount", { count: monitorLogs.length })}
-                    </CardDescription>
+              <div className="space-y-6">
+                {!config ? (
+                  <p className="text-xs text-slate-500">
+                    {t("settings.loading")}
+                  </p>
+                ) : (
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2 rounded-xl border border-slate-200/90 bg-white/80 p-4 text-xs text-slate-700 shadow-2xs">
+                      <div className="flex justify-between border-b border-slate-100 pb-1.5">
+                        <span className="text-slate-500">{t("settings.listen")}:</span>
+                        <span className="font-mono text-slate-900 font-semibold">
+                          {config.host}:{config.port}
+                        </span>
+                      </div>
+                      <div className="flex justify-between border-b border-slate-100 pb-1.5">
+                        <span className="text-slate-500">BASE_URL:</span>
+                        <span className="font-mono text-slate-900 truncate max-w-[200px]">
+                          {config.baseUrl || t("common.unset")}
+                        </span>
+                      </div>
+                      <div className="flex justify-between border-b border-slate-100 pb-1.5">
+                        <span className="text-slate-500">TRUST_HOST:</span>
+                        <span className="font-mono text-slate-900 truncate max-w-[200px]">
+                          {config.trustHost?.length
+                            ? config.trustHost.join(", ")
+                            : t("settings.trustHostUnlimited")}
+                        </span>
+                      </div>
+                      <div className="flex justify-between border-b border-slate-100 pb-1.5">
+                        <span className="text-slate-500">{t("settings.maxUpload")}:</span>
+                        <span className="font-mono text-slate-900 font-semibold">{config.maxUploadSizeMb}MB</span>
+                      </div>
+                      <div className="flex justify-between border-b border-slate-100 pb-1.5">
+                        <span className="text-slate-500">LibreOffice:</span>
+                        <span className="font-mono text-slate-900">
+                          {config.libreOfficePath || "soffice"}
+                        </span>
+                      </div>
+                      <div className="flex justify-between pt-0.5">
+                        <span className="text-slate-500">{t("settings.convertTimeout")}:</span>
+                        <span className="font-mono text-slate-900">
+                          {config.convertTimeoutMs || 120000}ms
+                        </span>
+                      </div>
+                    </div>
+                    <div className="space-y-2 rounded-xl border border-slate-200/90 bg-white/80 p-4 text-xs text-slate-700 shadow-2xs">
+                      <div className="flex justify-between border-b border-slate-100 pb-1.5">
+                        <span className="text-slate-500">AES:</span>
+                        <Badge className="font-mono text-[10px] border border-slate-200 bg-slate-100 text-slate-700">
+                          {config.aesEnabled ? t("common.enabled") : t("common.disabled")}
+                        </Badge>
+                      </div>
+                      <div className="flex justify-between border-b border-slate-100 pb-1.5">
+                        <span className="text-slate-500">Basic Auth:</span>
+                        <Badge className="font-mono text-[10px] border border-slate-200 bg-slate-100 text-slate-700">
+                          {config.basicAuthEnabled ? t("common.enabled") : t("common.disabled")}
+                        </Badge>
+                      </div>
+                      <div className="flex justify-between border-b border-slate-100 pb-1.5">
+                        <span className="text-slate-500">{t("settings.previewPassword")}:</span>
+                        <Badge className="font-mono text-[10px] border border-slate-200 bg-slate-100 text-slate-700">
+                          {config.previewPasswordEnabled ? t("common.enabled") : t("common.disabled")}
+                        </Badge>
+                      </div>
+                      <div className="flex justify-between border-b border-slate-100 pb-1.5">
+                        <span className="text-slate-500">{t("settings.allowEmbed")}:</span>
+                        <Badge className="font-mono text-[10px] border border-slate-200 bg-slate-100 text-slate-700">
+                          {config.allowEmbed ? t("common.enabled") : t("common.disabled")}
+                        </Badge>
+                      </div>
+                      <div className="flex justify-between border-b border-slate-100 pb-1.5">
+                        <span className="text-slate-500">{t("settings.blockPrivate")}:</span>
+                        <Badge className="font-mono text-[10px] border border-slate-200 bg-slate-100 text-slate-700">
+                          {config.blockPrivateIp ? t("common.enabled") : t("common.disabled")}
+                        </Badge>
+                      </div>
+                      <div className="flex justify-between pt-0.5">
+                        <span className="text-slate-500">{t("settings.rateLimit")}:</span>
+                        <span className="font-mono text-slate-900">
+                          {config.rateLimitMax}/{config.rateLimitWindowMs}ms
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex gap-2">
+                )}
+
+                <div className="space-y-4 rounded-xl border border-slate-200/90 bg-white/80 p-5 shadow-2xs">
+                  <p className="text-sm font-bold text-slate-900">{t("settings.cacheTitle")}</p>
+                  {monitorStats ? (
+                    <div className="grid gap-3.5 text-xs md:grid-cols-3">
+                      <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-4">
+                        <div className="text-slate-500">{t("settings.cacheConvert")}</div>
+                        <div className="mt-1.5 font-mono font-bold text-slate-900 text-lg">
+                          {t("settings.countSize", {
+                            count: monitorStats.cache.convert.count,
+                            size: formatSize(monitorStats.cache.convert.bytes),
+                          })}
+                        </div>
+                      </div>
+                      <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-4">
+                        <div className="text-slate-500">{t("settings.cacheRemote")}</div>
+                        <div className="mt-1.5 font-mono font-bold text-slate-900 text-lg">
+                          {t("settings.countSize", {
+                            count: monitorStats.cache.remote.count,
+                            size: formatSize(monitorStats.cache.remote.bytes),
+                          })}
+                        </div>
+                      </div>
+                      <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-4">
+                        <div className="text-slate-500">{t("settings.cacheTemp")}</div>
+                        <div className="mt-1.5 font-mono font-bold text-slate-900 text-lg">
+                          {t("settings.countSize", {
+                            count: monitorStats.cache.temp.count,
+                            size: formatSize(monitorStats.cache.temp.bytes),
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-500">
+                      {t("settings.cacheLoading")}
+                    </p>
+                  )}
+                  <div className="flex flex-wrap gap-2 pt-1">
                     <Button
                       size="sm"
                       variant="outline"
-                      disabled={monitorBusy}
-                      onClick={() => {
-                        refreshMonitor().catch((err: Error) =>
-                          setMessage({ type: "err", text: err.message }),
-                        );
-                      }}
-                    >
-                      <RefreshCw className="size-3.5" />
-                      {t("common.refresh")}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
+                      className="border-slate-200 bg-white text-slate-700 hover:bg-slate-50 text-xs rounded-xl shadow-2xs"
                       disabled={monitorBusy}
                       onClick={async () => {
-                        if (!confirm(t("monitor.confirmClear"))) return;
                         setMonitorBusy(true);
                         try {
-                          await clearMonitorLogsApi();
+                          await clearMonitorCache("convert");
                           await refreshMonitor();
-                          setMessage({ type: "ok", text: t("monitor.cleared") });
+                          setMessage({
+                            type: "ok",
+                            text: t("settings.clearedConvert"),
+                          });
                         } catch (err) {
                           setMessage({
                             type: "err",
                             text:
                               err instanceof Error
                                 ? err.message
-                                : t("monitor.clearFailed"),
+                                : t("files.purgeFailed"),
                           });
                         } finally {
                           setMonitorBusy(false);
                         }
                       }}
                     >
-                      <Trash2 className="size-3.5" />
-                      {t("monitor.clear")}
+                      {t("settings.clearConvert")}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-slate-200 bg-white text-slate-700 hover:bg-slate-50 text-xs rounded-xl shadow-2xs"
+                      disabled={monitorBusy}
+                      onClick={async () => {
+                        setMonitorBusy(true);
+                        try {
+                          await clearMonitorCache("remote");
+                          await refreshMonitor();
+                          setMessage({
+                            type: "ok",
+                            text: t("settings.clearedRemote"),
+                          });
+                        } catch (err) {
+                          setMessage({
+                            type: "err",
+                            text:
+                              err instanceof Error
+                                ? err.message
+                                : t("files.purgeFailed"),
+                          });
+                        } finally {
+                          setMonitorBusy(false);
+                        }
+                      }}
+                    >
+                      {t("settings.clearRemote")}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-slate-200 bg-white text-slate-700 hover:bg-slate-50 text-xs rounded-xl shadow-2xs"
+                      disabled={monitorBusy}
+                      onClick={() => void purgeAllCache()}
+                    >
+                      {t("settings.clearAll")}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-slate-900 bg-slate-900 text-white hover:bg-slate-800 text-xs font-semibold rounded-xl shadow-2xs"
+                      disabled={busy}
+                      onClick={async () => {
+                        try {
+                          const c = await fetchPublicConfig();
+                          setConfig(c);
+                          setMessage({
+                            type: "ok",
+                            text: t("settings.configRefreshed"),
+                          });
+                        } catch (err) {
+                          setMessage({
+                            type: "err",
+                            text:
+                              err instanceof Error
+                                ? err.message
+                                : t("settings.refreshFailed"),
+                          });
+                        }
+                      }}
+                    >
+                      {t("settings.refreshConfig")}
                     </Button>
                   </div>
-                </CardHeader>
-                <CardContent className="p-0">
-                  {monitorLogs.length === 0 ? (
-                    <div className="text-muted-foreground p-8 text-center text-xs">
-                      {t("monitor.empty")}
-                    </div>
-                  ) : (
-                    <div className="max-h-[min(52vh,480px)] overflow-auto">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead className="w-[160px]">
-                              {t("monitor.colTime")}
-                            </TableHead>
-                            <TableHead className="w-[100px]">
-                              {t("monitor.colKind")}
-                            </TableHead>
-                            <TableHead>{t("monitor.colMsg")}</TableHead>
-                            <TableHead className="w-[80px]">
-                              {t("monitor.colDuration")}
-                            </TableHead>
-                            <TableHead className="w-[70px]">
-                              {t("monitor.colCache")}
-                            </TableHead>
-                            <TableHead className="w-[70px]">
-                              {t("monitor.colLevel")}
-                            </TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {monitorLogs.map((log) => (
-                            <TableRow key={log.id}>
-                              <TableCell className="font-mono text-xs whitespace-nowrap">
-                                {formatTime(log.ts)}
-                              </TableCell>
-                              <TableCell className="text-xs font-medium">
-                                {log.kind}
-                              </TableCell>
-                              <TableCell className="max-w-[360px] truncate text-xs">
-                                {log.message}
-                              </TableCell>
-                              <TableCell className="font-mono text-xs">
-                                {typeof log.durationMs === "number"
-                                  ? `${log.durationMs}ms`
-                                  : "—"}
-                              </TableCell>
-                              <TableCell className="text-xs">
-                                {log.cacheHit === true
-                                  ? "HIT"
-                                  : log.cacheHit === false
-                                    ? "MISS"
-                                    : "—"}
-                              </TableCell>
-                              <TableCell
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === "monitor" && (
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-4">
+              <StatCard
+                label={t("monitor.previewToday")}
+                value={String(monitorStats?.previewToday ?? "—")}
+                hint={t("monitor.previewHint", {
+                  total: monitorStats?.previewTotal ?? 0,
+                  uptime: monitorStats?.uptimeText || "—",
+                })}
+              />
+              <StatCard
+                label={t("monitor.hitRate")}
+                value={monitorStats?.cacheHitRateText || "—"}
+                hint={`hit ${monitorStats?.cacheHits ?? 0} / miss ${monitorStats?.cacheMisses ?? 0}`}
+              />
+              <StatCard
+                label={t("monitor.avgConvert")}
+                value={monitorStats ? `${monitorStats.avgConvertMs} ms` : "—"}
+                hint={t("monitor.convertHint", {
+                  count: monitorStats?.convertTotal ?? 0,
+                })}
+              />
+              <StatCard
+                label={t("monitor.convertErrors")}
+                value={t("monitor.errorsUnit", {
+                  count: monitorStats?.convertErrors ?? "—",
+                })}
+                hint={
+                  monitorStats
+                    ? t("monitor.cacheBytes", {
+                        size: formatSize(monitorStats.cache.totalBytes),
+                      })
+                    : "—"
+                }
+              />
+            </div>
+
+            <div className="glass-card rounded-2xl overflow-hidden shadow-sm">
+              <div className="flex flex-row items-center justify-between gap-3 border-b border-slate-200/80 p-4 py-3.5 bg-white/70">
+                <div>
+                  <h2 className="text-sm font-bold text-slate-900">{t("monitor.logsTitle")}</h2>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {t("monitor.logsCount", { count: monitorLogs.length })}
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-slate-200 bg-white text-slate-700 hover:bg-slate-50 text-xs rounded-xl shadow-2xs"
+                    disabled={monitorBusy}
+                    onClick={() => {
+                      refreshMonitor().catch((err: Error) =>
+                        setMessage({ type: "err", text: err.message }),
+                      );
+                    }}
+                  >
+                    <RefreshCw className="size-3.5 mr-1" />
+                    {t("common.refresh")}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-slate-200 bg-white text-slate-500 hover:text-rose-600 hover:bg-rose-50 hover:border-rose-200 text-xs rounded-xl shadow-2xs"
+                    disabled={monitorBusy}
+                    onClick={async () => {
+                      if (!confirm(t("monitor.confirmClear"))) return;
+                      setMonitorBusy(true);
+                      try {
+                        await clearMonitorLogsApi();
+                        await refreshMonitor();
+                        setMessage({ type: "ok", text: t("monitor.cleared") });
+                      } catch (err) {
+                        setMessage({
+                          type: "err",
+                          text:
+                            err instanceof Error
+                              ? err.message
+                              : t("monitor.clearFailed"),
+                        });
+                      } finally {
+                        setMonitorBusy(false);
+                      }
+                    }}
+                  >
+                    <Trash2 className="size-3.5 mr-1" />
+                    {t("monitor.clear")}
+                  </Button>
+                </div>
+              </div>
+              <div>
+                {monitorLogs.length === 0 ? (
+                  <div className="p-12 text-center text-xs text-slate-400">
+                    {t("monitor.empty")}
+                  </div>
+                ) : (
+                  <div className="max-h-[550px] overflow-auto bg-white/60">
+                    <Table>
+                      <TableHeader className="bg-slate-50/90 sticky top-0 border-b border-slate-200/80">
+                        <TableRow className="hover:bg-transparent">
+                          <TableHead className="w-[160px] text-xs font-semibold text-slate-700">
+                            {t("monitor.colTime")}
+                          </TableHead>
+                          <TableHead className="w-[100px] text-xs font-semibold text-slate-700">
+                            {t("monitor.colKind")}
+                          </TableHead>
+                          <TableHead className="text-xs font-semibold text-slate-700">{t("monitor.colMsg")}</TableHead>
+                          <TableHead className="w-[80px] text-xs font-semibold text-slate-700">
+                            {t("monitor.colDuration")}
+                          </TableHead>
+                          <TableHead className="w-[70px] text-xs font-semibold text-slate-700">
+                            {t("monitor.colCache")}
+                          </TableHead>
+                          <TableHead className="w-[70px] text-xs font-semibold text-slate-700">
+                            {t("monitor.colLevel")}
+                          </TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {monitorLogs.map((log) => (
+                          <TableRow key={log.id} className="border-b border-slate-100 hover:bg-indigo-50/40 transition-colors">
+                            <TableCell className="font-mono text-xs text-slate-500 whitespace-nowrap">
+                              {formatTime(log.ts)}
+                            </TableCell>
+                            <TableCell className="text-xs font-medium text-slate-800">
+                              {log.kind}
+                            </TableCell>
+                            <TableCell className="max-w-[360px] truncate text-xs text-slate-600">
+                              {log.message}
+                            </TableCell>
+                            <TableCell className="font-mono text-xs text-slate-900 font-semibold">
+                              {typeof log.durationMs === "number"
+                                ? `${log.durationMs}ms`
+                                : "—"}
+                            </TableCell>
+                            <TableCell className="text-xs font-mono">
+                              {log.cacheHit === true ? (
+                                <span className="text-emerald-600 font-bold">HIT</span>
+                              ) : log.cacheHit === false ? (
+                                <span className="text-slate-400">MISS</span>
+                              ) : (
+                                <span className="text-slate-300">—</span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <span
                                 className={cn(
-                                  "text-xs font-medium",
+                                  "font-mono text-[10px] uppercase border px-2 py-0.5 rounded font-semibold",
                                   log.level === "error"
-                                    ? "text-neutral-900"
+                                    ? "bg-rose-50 text-rose-700 border-rose-200"
                                     : log.level === "warn"
-                                      ? "text-neutral-600"
-                                      : "text-neutral-700",
+                                    ? "bg-amber-50 text-amber-700 border-amber-200"
+                                    : "bg-blue-50 text-blue-700 border-blue-200"
                                 )}
                               >
                                 {log.level}
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+                              </span>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </div>
             </div>
-          )}
-        </main>
-      </div>
+          </div>
+        )}
+        </div>
+      </main>
 
+      {/* Toast notifications */}
       {message && (
         <div
           className={cn(
-            "pointer-events-none fixed right-5 bottom-5 z-50 w-[min(360px,calc(100vw-2.5rem))]",
+            "pointer-events-none fixed right-5 bottom-5 z-50 w-[min(380px,calc(100vw-2.5rem))]",
             "transition-all duration-200 ease-out",
             toastVisible
-              ? "translate-y-0 opacity-100"
-              : "translate-y-2 opacity-0",
+              ? "translate-y-0 opacity-100 scale-100"
+              : "translate-y-2 opacity-0 scale-95",
           )}
           role="status"
           aria-live="polite"
         >
           <div
-            className={cn(
-              "pointer-events-auto flex items-start gap-3 rounded-xl border px-3.5 py-3 shadow-lg backdrop-blur-sm",
-              message.type === "ok"
-                ? "border-neutral-900 bg-white/95 text-neutral-900 shadow-neutral-200/80"
-                : "border-neutral-400 bg-white/95 text-neutral-900 shadow-neutral-200/80",
-            )}
+            className="pointer-events-auto flex items-start gap-3 rounded-2xl border border-slate-200/90 bg-white/95 backdrop-blur-xl p-4 shadow-2xl text-slate-900"
           >
             {message.type === "ok" ? (
-              <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-neutral-900" />
+              <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-500" />
             ) : (
-              <AlertCircle className="mt-0.5 size-4 shrink-0 text-neutral-900" />
+              <AlertCircle className="mt-0.5 size-4 shrink-0 text-rose-500" />
             )}
             <div className="min-w-0 flex-1">
-              <p className="text-xs font-semibold">
+              <p className="text-xs font-bold text-slate-900">
                 {message.type === "ok" ? t("common.success") : t("common.error")}
               </p>
-              <p className="mt-0.5 text-xs leading-relaxed text-slate-600">
+              <p className="mt-0.5 text-xs leading-relaxed text-slate-500 font-normal">
                 {message.text}
               </p>
             </div>
             <button
               type="button"
-              className="rounded-md p-0.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+              className="rounded-lg p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 cursor-pointer"
               aria-label={t("common.close")}
               onClick={() => {
                 setToastVisible(false);
@@ -1377,25 +1350,37 @@ function LanguageSelect(props: {
   t: (key: string, vars?: Record<string, string | number>) => string;
   compact?: boolean;
 }) {
+  if (props.compact) {
+    return (
+      <div className="relative flex items-center">
+        <Globe className="pointer-events-none absolute left-2.5 size-3.5 text-slate-400" />
+        <select
+          className="appearance-none rounded-full bg-slate-100/80 hover:bg-slate-100 py-1 pl-7 pr-3 text-xs font-medium text-slate-600 outline-none transition-colors cursor-pointer border border-slate-200/50 shadow-2xs"
+          value={props.locale}
+          aria-label={props.t("common.language")}
+          onChange={(e) => props.setLocale(e.target.value as Locale)}
+        >
+          {LOCALES.map((code) => (
+            <option key={code} value={code} className="bg-white text-slate-800">
+              {localeLabel(code)}
+            </option>
+          ))}
+        </select>
+      </div>
+    );
+  }
+
   return (
-    <label
-      className={cn(
-        "flex items-center gap-2 text-xs text-slate-500",
-        props.compact ? "" : "w-full",
-      )}
-    >
-      {!props.compact && <span className="shrink-0">{props.t("common.language")}</span>}
+    <label className="flex w-full items-center gap-2 text-xs text-slate-600">
+      <span className="shrink-0 font-medium">{props.t("common.language")}</span>
       <select
-        className={cn(
-          "rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700 outline-none focus:border-neutral-900 focus:ring-2 focus:ring-neutral-200",
-          props.compact ? "max-w-[140px]" : "w-full",
-        )}
+        className="w-full rounded-xl border border-slate-200/90 bg-white/90 px-3 py-1.5 text-xs text-slate-800 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-900/10 shadow-2xs transition-all cursor-pointer"
         value={props.locale}
         aria-label={props.t("common.language")}
         onChange={(e) => props.setLocale(e.target.value as Locale)}
       >
         {LOCALES.map((code) => (
-          <option key={code} value={code}>
+          <option key={code} value={code} className="bg-white text-slate-800">
             {localeLabel(code)}
           </option>
         ))}
@@ -1404,29 +1389,19 @@ function LanguageSelect(props: {
   );
 }
 
-function configHintsReady(config: PublicConfig | null): string {
-  if (!config) return "—";
-  return config.aesEnabled ? "AES on" : "idle";
-}
-
 function StatCard(props: {
   label: string;
   value: string;
   hint: string;
-  valueClass?: string;
 }) {
   return (
-    <div className="rounded-xl border border-slate-200/90 bg-white p-3.5 shadow-xs">
-      <div className="text-[11px] text-slate-500">{props.label}</div>
-      <div
-        className={cn(
-          "mt-1 font-mono text-lg font-bold text-slate-900",
-          props.valueClass,
-        )}
-      >
+    <div className="glass-card-interactive rounded-2xl p-4 space-y-1.5 shadow-sm group relative overflow-hidden">
+      <div className="text-xs font-semibold text-slate-500 group-hover:text-indigo-600 transition-colors">{props.label}</div>
+      <div className="font-mono text-2xl font-black tracking-tight text-slate-900 group-hover:scale-105 transition-transform origin-left">
         {props.value}
       </div>
-      <div className="mt-1 text-[10px] text-slate-400">{props.hint}</div>
+      <div className="text-[11px] text-slate-400 font-normal">{props.hint}</div>
+      <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-indigo-500/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
     </div>
   );
 }
@@ -1452,72 +1427,92 @@ function ParamFields(props: {
   const { t } = useI18n();
   return (
     <>
-      <div className="space-y-2">
-        <Label htmlFor="remoteUrl">{t("params.remoteUrl")}</Label>
+      <div className="space-y-1.5">
+        <Label htmlFor="remoteUrl" className="text-xs font-semibold text-slate-700">
+          {t("params.remoteUrl")}
+        </Label>
         <Input
           id="remoteUrl"
+          className="border-slate-200 bg-white/90 text-xs text-slate-900 placeholder:text-slate-400 focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10 rounded-xl"
           value={props.remoteUrl}
           onChange={(e) => props.setRemoteUrl(e.target.value)}
           placeholder="https://example.com/demo.docx"
         />
       </div>
-      <div className="space-y-2">
-        <Label htmlFor="watermark">{t("params.watermark")}</Label>
+      <div className="space-y-1.5">
+        <Label htmlFor="watermark" className="text-xs font-semibold text-slate-700">
+          {t("params.watermark")}
+        </Label>
         <Input
           id="watermark"
+          className="border-slate-200 bg-white/90 text-xs text-slate-900 focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10 rounded-xl"
           value={props.watermarkTxt}
           onChange={(e) => props.setWatermarkTxt(e.target.value)}
         />
       </div>
       <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-2">
-          <Label htmlFor="page">{t("params.page")}</Label>
+        <div className="space-y-1.5">
+          <Label htmlFor="page" className="text-xs font-semibold text-slate-700">
+            {t("params.page")}
+          </Label>
           <Input
             id="page"
+            className="border-slate-200 bg-white/90 text-xs text-slate-900 focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10 rounded-xl"
             value={props.pageNo}
             onChange={(e) => props.setPageNo(e.target.value)}
           />
         </div>
-        <div className="space-y-2">
-          <Label htmlFor="highlight">{t("params.highlight")}</Label>
+        <div className="space-y-1.5">
+          <Label htmlFor="highlight" className="text-xs font-semibold text-slate-700">
+            {t("params.highlight")}
+          </Label>
           <Input
             id="highlight"
+            className="border-slate-200 bg-white/90 text-xs text-slate-900 focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10 rounded-xl"
             value={props.highlight}
             onChange={(e) => props.setHighlight(e.target.value)}
           />
         </div>
       </div>
-      <div className="space-y-2">
-        <Label htmlFor="password">{t("params.password")}</Label>
+      <div className="space-y-1.5">
+        <Label htmlFor="password" className="text-xs font-semibold text-slate-700">
+          {t("params.password")}
+        </Label>
         <Input
           id="password"
           type="password"
+          className="border-slate-200 bg-white/90 text-xs text-slate-900 focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10 rounded-xl"
           value={props.password}
           onChange={(e) => props.setPassword(e.target.value)}
           placeholder={t("params.passwordPh")}
         />
       </div>
-      <div className="space-y-2">
-        <Label htmlFor="ftp">{t("params.ftp")}</Label>
+      <div className="space-y-1.5">
+        <Label htmlFor="ftp" className="text-xs font-semibold text-slate-700">
+          {t("params.ftp")}
+        </Label>
         <Input
           id="ftp"
+          className="border-slate-200 bg-white/90 text-xs text-slate-900 focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10 rounded-xl"
           value={props.ftpHost}
           onChange={(e) => props.setFtpHost(e.target.value)}
           placeholder={t("params.ftpPh")}
         />
       </div>
-      <div className="space-y-3">
-        <label className="flex items-center gap-2 text-sm">
+      <div className="space-y-2.5 pt-1">
+        <label className="flex items-center gap-2.5 text-xs text-slate-700 font-medium cursor-pointer">
           <Checkbox
             checked={props.useAes}
             onCheckedChange={(v) => props.setUseAes(v === true)}
+            className="border-slate-300 data-[state=checked]:bg-slate-900 data-[state=checked]:text-white data-[state=checked]:border-slate-900 rounded"
           />
           {t("params.aes")}
         </label>
-        <label className="flex items-center gap-2 text-sm">
+        <label className="flex items-center gap-2.5 text-xs text-slate-700 font-medium cursor-pointer">
           <Checkbox
             checked={props.forceUpdatedCache}
             onCheckedChange={(v) => props.setForceUpdatedCache(v === true)}
+            className="border-slate-300 data-[state=checked]:bg-slate-900 data-[state=checked]:text-white data-[state=checked]:border-slate-900 rounded"
           />
           {t("params.forceCache")}
         </label>
