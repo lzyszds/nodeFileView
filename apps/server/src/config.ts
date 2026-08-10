@@ -76,7 +76,9 @@ export const config = {
   maxUploadSizeBytes: env.MAX_UPLOAD_SIZE_MB * 1024 * 1024,
   maxArchiveEntryBytes: env.MAX_ARCHIVE_ENTRY_MB * 1024 * 1024,
   basicAuth: {
-    enabled: boolish(env.BASIC_AUTH_ENABLED, false),
+    // 默认也启用控制台登录，避免开发模式绕过鉴权而无法验证登录流程。
+    // 仅在需要本地直通时显式设置 BASIC_AUTH_ENABLED=false。
+    enabled: boolish(env.BASIC_AUTH_ENABLED, true),
     user: env.BASIC_AUTH_USER,
     pass: env.BASIC_AUTH_PASS,
   },

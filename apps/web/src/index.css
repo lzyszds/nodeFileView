@@ -189,6 +189,76 @@
     background-size: 24px 24px;
   }
 
+  .login-shell {
+    background-image:
+      linear-gradient(115deg, rgba(248, 250, 255, 0.78), rgba(242, 247, 255, 0.68)),
+      radial-gradient(ellipse 55% 65% at 8% 6%, rgba(129, 140, 248, 0.3), transparent 70%),
+      radial-gradient(ellipse 50% 58% at 96% 94%, rgba(56, 189, 248, 0.24), transparent 72%),
+      radial-gradient(ellipse 35% 45% at 78% 16%, rgba(196, 181, 253, 0.2), transparent 74%);
+  }
+
+  .login-shell::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.45;
+    background-image:
+      linear-gradient(rgba(71, 85, 105, 0.045) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(71, 85, 105, 0.045) 1px, transparent 1px);
+    background-size: 36px 36px;
+    mask-image: radial-gradient(ellipse at center, black, transparent 78%);
+  }
+
+  .login-card {
+    position: relative;
+    overflow: hidden;
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    box-shadow:
+      0 28px 60px -30px rgba(15, 23, 42, 0.3),
+      0 1px 1px rgba(15, 23, 42, 0.03);
+  }
+
+  .login-card::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.95), transparent);
+  }
+
+  .login-orb {
+    position: absolute;
+    border-radius: 9999px;
+    pointer-events: none;
+    filter: blur(2px);
+  }
+
+  .login-orb-one {
+    top: 11%;
+    left: -8rem;
+    width: 24rem;
+    height: 24rem;
+    background: radial-gradient(circle at 65% 40%, rgba(99, 102, 241, 0.26), rgba(129, 140, 248, 0.05) 55%, transparent 70%);
+    animation: login-drift 14s ease-in-out infinite;
+  }
+
+  .login-orb-two {
+    right: -7rem;
+    bottom: 3%;
+    width: 25rem;
+    height: 25rem;
+    background: radial-gradient(circle at 38% 40%, rgba(14, 165, 233, 0.2), rgba(125, 211, 252, 0.04) 58%, transparent 72%);
+    animation: login-drift 17s ease-in-out infinite reverse;
+  }
+
+  @keyframes login-drift {
+    0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+    50% { transform: translate3d(24px, -18px, 0) scale(1.08); }
+  }
+
+
   /* Ambient Aura Glowing Lights with Organic Motion */
   .aura-glow-1 {
     position: absolute;

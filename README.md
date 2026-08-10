@@ -57,7 +57,7 @@ Workflow：[`.github/workflows/docker-build.yml`](.github/workflows/docker-build
 | 端口 | 容器内默认 `8012`；外面用 `-p 宿主机端口:8012` 映射 |
 | `NOT_TRUST_HOST` | **自带默认**（localhost / 私网段等），一般不用再写 |
 | `TRUST_HOST` | 空 = 不额外白名单（仍拦私网 / NOT_TRUST） |
-| `BASIC_AUTH_*` | 默认**不开锁**；生产务必显式打开并设密码 |
+| `BASIC_AUTH_*` | 默认开启登录；本地直通时可显式设为 `false` |
 | `BASE_URL` | 可选，仅展示/接入用 |
 
 **精简版（推荐最少写这些）：**
@@ -89,8 +89,8 @@ docker run -d --name nodefileview --restart=always \
 | `DATA_DIR` | 上传/缓存/临时目录根 | `./data` |
 | `MAX_UPLOAD_SIZE_MB` | 最大上传 | `200` |
 | `MAX_ARCHIVE_ENTRY_MB` | 压缩包单文件解压上限 | `100` |
-| `BASIC_AUTH_ENABLED` | 控制台登录锁 | 本地 `false`；Docker `true` |
-| `BASIC_AUTH_USER` / `BASIC_AUTH_PASS` | 控制台账号密码 | `admin` / 请改 |
+| `BASIC_AUTH_ENABLED` | 控制台登录锁 | `true`（本地直通时显式设为 `false`） |
+| `BASIC_AUTH_USER` / `BASIC_AUTH_PASS` | 控制台账号密码 | `admin` / `admin123`（生产务必修改） |
 | `BASE_URL` | 对外基址（展示/接入用） | 空 |
 | `TRUST_HOST` | 远程 URL 主机白名单（`*` 通配，空=不额外限制） | 空 |
 | `NOT_TRUST_HOST` | 远程 URL 主机黑名单 | localhost / 私网段等 |
