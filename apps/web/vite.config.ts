@@ -17,15 +17,17 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      "/api": "http://127.0.0.1:8012",
-      "/assets": "http://127.0.0.1:8012",
-      "/onlinePreview": "http://127.0.0.1:8012",
-      "/__demo": "http://127.0.0.1:8012",
-      "/health": "http://127.0.0.1:8012",
+      "/api": "http://127.0.0.1:6001",
+      "/assets": "http://127.0.0.1:6001",
+      "/onlinePreview": "http://127.0.0.1:6001",
+      "/__demo": "http://127.0.0.1:6001",
+      "/health": "http://127.0.0.1:6001",
     },
   },
   build: {
     outDir: "dist",
     emptyOutDir: true,
+    sourcemap: false,
+    reportCompressedSize: false,
   },
 });

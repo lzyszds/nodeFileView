@@ -24,11 +24,15 @@ interface MetaIndex {
   files: Record<string, StoredFile>;
 }
 
+let metaMem: MetaIndex | null = null;
+let metaPersistTimer: ReturnType<typeof setTimeout> | null = null;
+let metaWriteChain: Promise<void> = Promise.resolve();
+
 function metaPath(): string {
   return path.join(config.uploadsDir, "_meta.json");
 }
 
-async function readMeta(): Promise<MetaIndex> {
+async function readMetaFromDisk(): Promise<MetaIndex> {
   try {
     const raw = await fs.readFile(metaPath(), "utf8");
     return JSON.parse(raw) as MetaIndex;
@@ -37,7 +41,33 @@ async function readMeta(): Promise<MetaIndex> {
   }
 }
 
-async function writeMeta(meta: MetaIndex): Promise<void> {
+async function getMeta(): Promise<MetaIndex> {
+  if (!metaMem) {
+    metaMem = await readMetaFromDisk();
+    if (!metaMem.files) metaMem.files = {};
+  }
+  return metaMem;
+}
+
+function scheduleMetaPersist(): void {
+  if (metaPersistTimer) return;
+  metaPersistTimer = setTimeout(() => {
+    metaPersistTimer = null;
+    void flushMeta();
+  }, 800);
+}
+
+export async function flushMeta(): Promise<void> {
+  if (!metaMem) return;
+  const snap = metaMem;
+  metaWriteChain = metaWriteChain.then(async () => {
+    await fs.writeFile(metaPath(), JSON.stringify(snap, null, 2), "utf8");
+  });
+  await metaWriteChain;
+}
+
+async function writeMetaImmediate(meta: MetaIndex): Promise<void> {
+  metaMem = meta;
   await fs.writeFile(metaPath(), JSON.stringify(meta, null, 2), "utf8");
 }
 
@@ -45,9 +75,9 @@ export async function initFileStore(): Promise<void> {
   ensureDir(config.uploadsDir);
   ensureDir(config.cacheDir);
   ensureDir(config.tempDir);
-  const meta = await readMeta();
-  if (!meta.files) meta.files = {};
-  await writeMeta(meta);
+  metaMem = await readMetaFromDisk();
+  if (!metaMem.files) metaMem.files = {};
+  await writeMetaImmediate(metaMem);
 }
 
 export async function saveUploadedFile(input: {
@@ -80,9 +110,9 @@ export async function saveUploadedFile(input: {
     path: absPath,
   };
 
-  const meta = await readMeta();
+  const meta = await getMeta();
   meta.files[fileId] = { ...record, path: storedName };
-  await writeMeta(meta);
+  scheduleMetaPersist();
   return record;
 }
 
@@ -91,7 +121,7 @@ export async function listFiles(opts: {
   size: number;
   q?: string;
 }): Promise<{ total: number; page: number; size: number; items: StoredFile[] }> {
-  const meta = await readMeta();
+  const meta = await getMeta();
   let items = Object.values(meta.files).sort((a, b) =>
     b.createdAt.localeCompare(a.createdAt),
   );
@@ -114,7 +144,7 @@ export async function listFiles(opts: {
 }
 
 export async function getFile(fileId: string): Promise<StoredFile | null> {
-  const meta = await readMeta();
+  const meta = await getMeta();
   const record = meta.files[fileId];
   if (!record) return null;
   const abs = safeJoin(config.uploadsDir, record.path);
@@ -127,7 +157,7 @@ export async function getFile(fileId: string): Promise<StoredFile | null> {
 }
 
 export async function deleteFile(fileId: string): Promise<boolean> {
-  const meta = await readMeta();
+  const meta = await getMeta();
   const record = meta.files[fileId];
   if (!record) return false;
   const abs = safeJoin(config.uploadsDir, record.path);
@@ -137,7 +167,7 @@ export async function deleteFile(fileId: string): Promise<boolean> {
     // ignore missing
   }
   delete meta.files[fileId];
-  await writeMeta(meta);
+  scheduleMetaPersist();
   return true;
 }
 
@@ -200,9 +230,9 @@ export async function ensureStoredFromDisk(opts: {
     path: storedName,
   };
 
-  const meta = await readMeta();
+  const meta = await getMeta();
   meta.files[fileId] = record;
-  await writeMeta(meta);
+  scheduleMetaPersist();
   return { ...record, path: dest };
 }
 
@@ -216,7 +246,7 @@ export async function downloadRemoteToTemp(
   try {
     const res = await safeFetch(url.toString(), {
       signal: controller.signal,
-      headers: { "User-Agent": "nodeFileView/1.0" },
+      headers: { "User-Agent": "filePreview/1.0" },
     });
     if (!res.ok || !res.body) {
       throw new Error(`Failed to download remote file: HTTP ${res.status}`);

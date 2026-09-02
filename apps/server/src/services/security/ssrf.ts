@@ -122,7 +122,7 @@ export async function safeFetch(
   let current = await assertSafeRemoteUrl(rawUrl);
   const headers = new Headers(init.headers || {});
   if (!headers.has("User-Agent")) {
-    headers.set("User-Agent", "nodeFileView/1.0");
+    headers.set("User-Agent", "filePreview/1.0");
   }
 
   for (let i = 0; i <= MAX_REDIRECTS; i++) {

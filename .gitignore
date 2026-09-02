@@ -3,6 +3,8 @@ dist/
 data/uploads/*
 data/cache/*
 data/temp/*
+data/monitor-state.json
+data/**/*.json
 !data/uploads/.gitkeep
 !data/cache/.gitkeep
 !data/temp/.gitkeep

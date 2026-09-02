@@ -13,7 +13,14 @@ export function cachePathFor(key: string, ext = "pdf"): string {
 
 export async function hasCache(key: string, ext = "pdf"): Promise<boolean> {
   try {
-    await fs.access(cachePathFor(key, ext));
+    const abs = cachePathFor(key, ext);
+    const st = await fs.stat(abs);
+    if (!st.isFile()) return false;
+    const ttl = config.cache.ttlMs;
+    if (ttl > 0 && Date.now() - st.mtimeMs > ttl) {
+      await fs.unlink(abs).catch(() => undefined);
+      return false;
+    }
     return true;
   } catch {
     return false;

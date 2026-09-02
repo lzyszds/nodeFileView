@@ -8,7 +8,17 @@ import {
 } from "../services/fileStore.js";
 
 export async function fileRoutes(app: FastifyInstance): Promise<void> {
-  app.post("/api/upload", async (request, reply) => {
+  app.post(
+    "/api/upload",
+    {
+      config: {
+        rateLimit: {
+          max: config.rateLimit.uploadMax,
+          timeWindow: config.rateLimit.timeWindow,
+        },
+      },
+    },
+    async (request, reply) => {
     const file = await request.file();
     if (!file) {
       return reply.code(400).send({ error: "No file uploaded" });
@@ -39,7 +49,8 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
       const message = err instanceof Error ? err.message : "Upload failed";
       return reply.code(400).send({ error: message });
     }
-  });
+  },
+  );
 
   app.get<{
     Querystring: { page?: string; size?: string; q?: string };

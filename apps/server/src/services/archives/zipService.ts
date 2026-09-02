@@ -28,6 +28,25 @@ function isTarFamily(ext: string): boolean {
   return ["tar", "gz", "tgz", "gzip"].includes(ext);
 }
 
+/** 解压后必须是普通文件且仍在 outDir 内（防 symlink / zip-slip） */
+async function assertExtractedFile(
+  absPath: string,
+  outDir: string,
+): Promise<void> {
+  const st = await fsp.lstat(absPath);
+  if (st.isSymbolicLink()) {
+    throw new Error("Archive entry symlinks are not allowed");
+  }
+  if (!st.isFile()) {
+    throw new Error("Archive entry is not a regular file");
+  }
+  const root = await fsp.realpath(outDir);
+  const resolved = await fsp.realpath(absPath);
+  if (!resolved.startsWith(root + path.sep) && resolved !== root) {
+    throw new Error("Archive entry path escape");
+  }
+}
+
 function path7za(): string {
   const mod = require("7zip-bin") as { path7za: string };
   const bin = mod.path7za;
@@ -194,6 +213,7 @@ export async function extractArchiveEntry(opts: {
     const filename = path.posix.basename(safeEntry);
     const absPath = safeJoin(outDir, filename);
     await fsp.writeFile(absPath, entry.getData());
+    await assertExtractedFile(absPath, outDir);
     const stat = await fsp.stat(absPath);
     if (stat.size > config.maxArchiveEntryBytes) {
       await fsp.unlink(absPath).catch(() => undefined);
@@ -212,6 +232,7 @@ export async function extractArchiveEntry(opts: {
     });
     const absPath = safeJoin(outDir, ...safeEntry.split("/"));
     await fsp.access(absPath);
+    await assertExtractedFile(absPath, outDir);
     const stat = await fsp.stat(absPath);
     if (stat.size > config.maxArchiveEntryBytes) {
       await fsp.unlink(absPath).catch(() => undefined);
@@ -259,6 +280,7 @@ async function extractRarEntry(
   const filename = path.posix.basename(safeEntry);
   const absPath = safeJoin(outDir, filename);
   await fsp.writeFile(absPath, Buffer.from(hit.extraction));
+  await assertExtractedFile(absPath, outDir);
   return { absPath, filename, ext: getExt(filename) };
 }
 
@@ -280,6 +302,7 @@ async function extract7zEntry(
   }
   const absPath = safeJoin(outDir, ...safeEntry.split("/"));
   await fsp.access(absPath);
+  await assertExtractedFile(absPath, outDir);
   const stat = await fsp.stat(absPath);
   if (stat.isDirectory()) {
     throw new Error("Archive entry not found");

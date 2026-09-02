@@ -1,6 +1,6 @@
-# Preview Tool Bridge（nodeFileView → 其他 WebView 的工具方法接入）
+# Preview Tool Bridge（filePreview → 其他 WebView 的工具方法接入）
 
-当你在**另一个 WebView**（例如：自建页面 / 你们自己的 WebApp / 第三方 Webview）里嵌入 nodeFileView 的预览页面时，nodeFileView 默认会**隐藏所有顶部工具条/按钮**，但仍会把内部“工具动作”以统一协议暴露给宿主，让你用自己的 UI 按钮去调用。
+当你在**另一个 WebView**（例如：自建页面 / 你们自己的 WebApp / 第三方 Webview）里嵌入 filePreview 的预览页面时，filePreview 默认会**隐藏所有顶部工具条/按钮**，但仍会把内部“工具动作”以统一协议暴露给宿主，让你用自己的 UI 按钮去调用。
 
 本文档说明如何接入这些“工具方法”。
 
@@ -23,7 +23,7 @@ window.addEventListener("message", (event) => {
 
 ```ts
 {
-  source: "nodeFileViewPreview",
+  source: "filePreviewPreview",
   type: string,          // 事件类型
   detail: any            // 事件数据
 }
@@ -55,7 +55,7 @@ window.addEventListener("message", (event) => {
 ```js
 iframe.contentWindow?.postMessage(
   {
-    source: "nodeFileViewHost",
+    source: "filePreviewHost",
     type: "invoke-action",
     actionId: "zoomIn",      // 要调用的动作 id
     payload: {}             // 可选参数（不同动作格式不同）
@@ -66,7 +66,7 @@ iframe.contentWindow?.postMessage(
 
 预览页收到后，会调用对应的内部按钮/方法。
 
-> 兼容说明：预览页还会尝试调用宿主提供的全局桥对象：`window.nodeFileViewHost` / `window.previewHostBridge` / `window.electronAPI`。
+> 兼容说明：预览页还会尝试调用宿主提供的全局桥对象：`window.filePreviewHost` / `window.previewHostBridge` / `window.electronAPI`。
 > 只要宿主对象实现 `postMessage(payload)`、或 `emit(type, detail)`、或 `send(channel, payload)` 之一，就可以接收同样的消息。
 
 ---
@@ -97,7 +97,7 @@ const iframe = document.getElementById("nfvFrame");
 function invoke(actionId, payload = {}) {
   iframe.contentWindow?.postMessage(
     {
-      source: "nodeFileViewHost",
+      source: "filePreviewHost",
       type: "invoke-action",
       actionId,
       payload,
@@ -107,7 +107,7 @@ function invoke(actionId, payload = {}) {
 }
 
 window.addEventListener("message", (event) => {
-  if (event.data?.source !== "nodeFileViewPreview") return;
+  if (event.data?.source !== "filePreviewPreview") return;
   if (event.source !== iframe.contentWindow) return; // 多 iframe 时建议加过滤
 
   const { type, detail } = event.data;
@@ -176,7 +176,7 @@ payload：
 
 ```js
 window.addEventListener("message", (event) => {
-  if (event.data?.source !== "nodeFileViewPreview") return;
+  if (event.data?.source !== "filePreviewPreview") return;
   if (event.data.type !== "forward") return;
 
   const { fileName, mimeType, data, base64 } = event.data.detail;

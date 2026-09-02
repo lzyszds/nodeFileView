@@ -236,7 +236,7 @@ const previewFile = (file) => {
     // 8) 远程地址预览：url 必须 base64，并提供“打开预览”按钮
     if (!html.includes("generatedPlaygroundUrl")) {
       html = html.replace(
-        /<div class="p-4 bg-slate-900 text-emerald-400 font-mono text-xs rounded-xl break-all leading-relaxed space-y-2">\s*<div class="text-slate-500">\/\/ 生成的目标调起 URL<\/div>\s*<div>\/onlinePreview\?url=\{\{ encodeURIComponent\(playgroundUrl\) \}\}&watermarkTxt=nodeFileView&aes=true<\/div>\s*<\/div>/,
+        /<div class="p-4 bg-slate-900 text-emerald-400 font-mono text-xs rounded-xl break-all leading-relaxed space-y-2">\s*<div class="text-slate-500">\/\/ 生成的目标调起 URL<\/div>\s*<div>\/onlinePreview\?url=\{\{ encodeURIComponent\(playgroundUrl\) \}\}&watermarkTxt=filePreview&aes=true<\/div>\s*<\/div>/,
         `<div class="p-4 bg-slate-900 text-emerald-400 font-mono text-xs rounded-xl break-all leading-relaxed space-y-2">
                         <div class="text-slate-500">// 生成的目标调起 URL（url 参数为 base64）</div>
                         <div>{{ generatedPlaygroundUrl }}</div>
@@ -254,7 +254,7 @@ const previewFile = (file) => {
                 const raw = String(playgroundUrl.value || '').trim();
                 if (!raw) return '';
                 const encoded = btoa(unescape(encodeURIComponent(raw)));
-                return '/onlinePreview?url=' + encodeURIComponent(encoded) + '&watermarkTxt=nodeFileView';
+                return '/onlinePreview?url=' + encodeURIComponent(encoded) + '&watermarkTxt=filePreview';
             });
 
             const openPlaygroundPreview = () => {
@@ -434,7 +434,7 @@ const previewFile = (file) => {
                     const cfg = await res.json();
                     settings.value = {
                         ...settings.value,
-                        watermark: settings.value.watermark || 'nodeFileView',
+                        watermark: settings.value.watermark || 'filePreview',
                         cacheTtl: settings.value.cacheTtl || 7,
                         _server: cfg,
                     };

@@ -1,20 +1,26 @@
 {
-  "name": "nodefileview",
+  "name": "filePreview",
   "version": "1.0.0",
   "private": true,
   "description": "Online file preview service (Node.js)",
   "scripts": {
     "dev": "pnpm --parallel -r run dev",
-    "dev:server": "pnpm --filter @nodefileview/server dev",
-    "dev:web": "pnpm --filter @nodefileview/web dev",
+    "dev:server": "pnpm --filter @filePreview/server dev",
+    "dev:web": "pnpm --filter @filePreview/web dev",
     "build": "pnpm -r run build",
-    "start": "pnpm --filter @nodefileview/server start",
-    "typecheck": "pnpm -r run typecheck"
+    "start": "pnpm --filter @filePreview/server start",
+    "typecheck": "pnpm -r run typecheck",
+    "docker:build": "bash scripts/docker-build.sh",
+    "docker:push": "bash scripts/docker-push.sh",
+    "docker:deploy": "bash scripts/docker-deploy.sh",
+    "docker:up": "bash scripts/docker-up.sh",
+    "docker:down": "docker compose -f docker/docker-compose.yml --env-file docker/.env down",
+    "docker:run": "bash docker/run.sh"
   },
   "engines": {
     "node": ">=20"
   },
-  "packageManager": "pnpm@9.15.0",
+  "packageManager": "pnpm@10.28.0",
   "pnpm": {
     "overrides": {
       "undici": "^7.28.0"

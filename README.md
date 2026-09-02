@@ -1,4 +1,4 @@
-# nodeFileView
+# filePreview
 
 在线文件预览服务（Node.js + React + Tailwind CSS + shadcn/ui），一期支持 Office→PDF、图片交互、文本高亮、压缩包浏览、音视频直预览，以及 AES / Basic Auth / 水印等接入控制。
 
@@ -22,15 +22,15 @@ pnpm dev
 ```
 
 - 演示首页（Vite）：http://127.0.0.1:5173 （React + Tailwind 侧栏控制台）
-- API / 预览服务：http://127.0.0.1:8012
-- 旧 demo 模板（可选对照）：http://127.0.0.1:8012/__demo/console7
+- API / 预览服务：http://127.0.0.1:6001
+- 旧 demo 模板（可选对照）：http://127.0.0.1:6001/__demo/console7
 
 生产构建后由服务端托管前端：
 
 ```bash
 pnpm build
 pnpm start
-# 打开 http://127.0.0.1:8012
+# 打开 http://127.0.0.1:6001
 ```
 
 ### Docker
@@ -45,7 +45,7 @@ pnpm start
 Workflow：[`.github/workflows/docker-build.yml`](.github/workflows/docker-build.yml)  
 推送 `main`/`master` 或手动跑 `Docker Build (amd64)`。
 
-镜像：`ghcr.io/<owner>/nodefileview:1.0.0`  
+镜像：`ghcr.io/<owner>/filePreview:1.0.0`  
 （私有包：`echo $GH_TOKEN | docker login ghcr.io -u USER --password-stdin`）
 
 **服务器上运行（主流程）**
@@ -54,7 +54,7 @@ Workflow：[`.github/workflows/docker-build.yml`](.github/workflows/docker-build
 
 | 项 | 不写会怎样 |
 |---|---|
-| 端口 | 容器内默认 `8012`；外面用 `-p 宿主机端口:8012` 映射 |
+| 端口 | 容器内默认 `6001`；外面用 `-p 宿主机端口:6001` 映射 |
 | `NOT_TRUST_HOST` | **自带默认**（localhost / 私网段等），一般不用再写 |
 | `TRUST_HOST` | 空 = 不额外白名单（仍拦私网 / NOT_TRUST） |
 | `BASIC_AUTH_*` | 默认开启登录；本地直通时可显式设为 `false` |
@@ -63,34 +63,34 @@ Workflow：[`.github/workflows/docker-build.yml`](.github/workflows/docker-build
 **精简版（推荐最少写这些）：**
 
 ```bash
-docker pull --platform linux/amd64 ghcr.io/<owner>/nodefileview:1.0.0
+docker pull --platform linux/amd64 ghcr.io/<owner>/filePreview:1.0.0
 
-docker run -d --name nodefileview --restart=always \
+docker run -d --name filePreview --restart=always \
   --platform linux/amd64 \
-  -p 127.0.0.1:8012:8012 \
+  -p 127.0.0.1:6001:6001 \
   -v /path/to/data:/app/data \
   -e BASIC_AUTH_ENABLED=true \
   -e BASIC_AUTH_USER=admin \
   -e BASIC_AUTH_PASS='你的强密码' \
   -e 'TRUST_HOST=*.my-imcloud.com,*.chat.qqlink.*' \
-  ghcr.io/<owner>/nodefileview:1.0.0
+  ghcr.io/<owner>/filePreview:1.0.0
 ```
 
 只有当你的文件域名不在默认黑名单、又想限制「只能拉这些域名」时，才需要 `TRUST_HOST`。  
-`NOT_TRUST_HOST` / `BASE_URL` 可按需再加；端口改外面 `-p` 即可，例如 `-p 8012:8012`。
+`NOT_TRUST_HOST` / `BASE_URL` 可按需再加；端口改外面 `-p` 即可，例如 `-p 6001:6001`。
 
-把命令存到服务器脚本即可（例如 `/opt/nodefileview/run.sh`）。仓库里的 `docker/run.sh` 只是可选本地调试工具。
+把命令存到服务器脚本即可（例如 `/opt/filePreview/run.sh`）。仓库里的 `docker/run.sh` 只是可选本地调试工具。
 
 ## 环境变量
 
 | 变量 | 说明 | 默认 |
 |---|---|---|
-| `PORT` | 服务端口 | `8012` |
+| `PORT` | 服务端口 | `6001` |
 | `DATA_DIR` | 上传/缓存/临时目录根 | `./data` |
-| `MAX_UPLOAD_SIZE_MB` | 最大上传 | `200` |
+| `MAX_UPLOAD_SIZE_MB` | 最大上传 / 远程下载 | `100` |
 | `MAX_ARCHIVE_ENTRY_MB` | 压缩包单文件解压上限 | `100` |
 | `BASIC_AUTH_ENABLED` | 控制台登录锁 | `true`（本地直通时显式设为 `false`） |
-| `BASIC_AUTH_USER` / `BASIC_AUTH_PASS` | 控制台账号密码 | `admin` / `admin123`（生产务必修改） |
+| `BASIC_AUTH_USER` / `BASIC_AUTH_PASS` | 控制台账号密码 | `admin` / 代码内默认（可用 env 覆盖） |
 | `BASE_URL` | 对外基址（展示/接入用） | 空 |
 | `TRUST_HOST` | 远程 URL 主机白名单（`*` 通配，空=不额外限制） | 空 |
 | `NOT_TRUST_HOST` | 远程 URL 主机黑名单 | localhost / 私网段等 |
@@ -100,6 +100,20 @@ docker run -d --name nodefileview --restart=always \
 | `PREVIEW_PASSWORD` | 预览口令（非空则启用） | 空 |
 | `LIBREOFFICE_PATH` | soffice 可执行文件 | `soffice` |
 | `ALLOW_EMBED` | 允许 iframe / webview 嵌预览 | `true` |
+| `RATE_LIMIT_MAX` | 全局限流（控制台/API） | `300` |
+| `RATE_LIMIT_UPLOAD_MAX` | 上传接口限流 | `30` |
+| `RATE_LIMIT_PREVIEW_EXEMPT` | 预览读路径豁免限流（IM 嵌入推荐 `true`） | `true` |
+| `CONVERT_MAX_CONCURRENT` | LibreOffice 同时转码数 | `2` |
+| `REMOTE_DOWNLOAD_TIMEOUT_MS` | 远程文件下载超时 | `120000` |
+| `HOT_REMOTE_CACHE_MS` | 远程命中内存缓存 TTL | `60000` |
+| `CLUSTER_WORKERS` | Node 集群 worker 数（`0/1`=单进程） | `0` |
+| `COMPRESS_ENABLED` | 响应 gzip/br 压缩 | `true` |
+| `LOG_REQUESTS` | 打印每条 HTTP 访问日志 | 生产 `false` |
+| `CACHE_TTL_DAYS` | 转码 PDF 磁盘缓存保留天数 | `7` |
+| `REMOTE_CACHE_TTL_DAYS` | 远程文件磁盘缓存保留天数 | `7` |
+| `TEMP_TTL_HOURS` | 临时文件（serve-/arc-）保留小时数 | `24` |
+| `CACHE_CLEANUP_INTERVAL_MS` | 后台清理间隔；`0`=禁用 | `3600000` |
+| `CACHE_MAX_MB` | 缓存总容量上限（MB）；`0`=不限制 | `0` |
 | `FORCE` / `forceUpdatedCache` | 查询参数刷新转换缓存 | — |
 
 ## 预览接入
@@ -112,7 +126,7 @@ GET /onlinePreview?url=<base64或AES>&watermarkTxt=内部资料&page=1&highlight
 - 本地上传后可在首页点「预览」，或调用：
 
 ```bash
-curl -F file=@demo.docx http://127.0.0.1:8012/api/upload
+curl -F file=@demo.docx http://127.0.0.1:6001/api/upload
 ```
 
 ## 主要 API

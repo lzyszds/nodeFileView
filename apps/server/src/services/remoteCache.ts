@@ -12,11 +12,54 @@ import {
   resolvePreviewKind,
 } from "../utils/ext.js";
 import { ensureDir, safeJoin, sanitizeFilename } from "../utils/path.js";
+import { createMaxBytesTransform } from "../utils/streamLimit.js";
+import { isRemoteCacheFresh } from "./cacheCleanup.js";
 import { recordMonitorEvent } from "./monitor.js";
 import { assertSafeRemoteUrl, safeFetch } from "./security/ssrf.js";
 
 export function remoteCacheId(url: string): string {
   return crypto.createHash("sha256").update(url).digest("hex").slice(0, 40);
+}
+
+type HotRemoteEntry = {
+  hit: { absPath: string; filename: string; ext: string };
+  size: number;
+  expires: number;
+};
+
+const hotRemote = new Map<string, HotRemoteEntry>();
+const HOT_REMOTE_CAP = 2000;
+
+function getHotRemote(id: string): HotRemoteEntry | null {
+  const entry = hotRemote.get(id);
+  if (!entry) return null;
+  if (Date.now() > entry.expires) {
+    hotRemote.delete(id);
+    return null;
+  }
+  return entry;
+}
+
+function setHotRemote(
+  id: string,
+  hit: { absPath: string; filename: string; ext: string },
+  size: number,
+): void {
+  const ttl = config.hotRemoteCacheMs;
+  if (ttl <= 0) return;
+  if (hotRemote.size >= HOT_REMOTE_CAP) {
+    const oldest = hotRemote.keys().next().value;
+    if (oldest) hotRemote.delete(oldest);
+  }
+  hotRemote.set(id, {
+    hit,
+    size,
+    expires: Date.now() + ttl,
+  });
+}
+
+export function invalidateHotRemote(remoteUrl: string): void {
+  hotRemote.delete(remoteCacheId(remoteUrl));
 }
 
 function cacheDir(): string {
@@ -103,6 +146,9 @@ export async function findCachedRemote(
   remoteUrl: string,
 ): Promise<{ absPath: string; filename: string; ext: string } | null> {
   const id = remoteCacheId(remoteUrl);
+  const hot = getHotRemote(id);
+  if (hot) return hot.hit;
+
   const dir = cacheDir();
   const urlExt = extFromUrlString(remoteUrl);
   try {
@@ -141,14 +187,20 @@ export async function findCachedRemote(
     let ext = hitExt;
     const metaName = `${id}.meta.json`;
     let filename = preferred;
+    let cachedAt: number | undefined;
     try {
       const meta = JSON.parse(
         await fs.readFile(safeJoin(dir, metaName), "utf8"),
-      ) as { filename?: string; ext?: string };
+      ) as { filename?: string; ext?: string; cachedAt?: number };
       if (meta.filename) filename = meta.filename;
       if (meta.ext) ext = getExt(`x.${meta.ext}`) || ext;
+      if (typeof meta.cachedAt === "number") cachedAt = meta.cachedAt;
     } catch {
       // ignore
+    }
+
+    if (!(await isRemoteCacheFresh(absPath, cachedAt))) {
+      return null;
     }
 
     const resolved = await resolveRemoteExt({
@@ -156,16 +208,37 @@ export async function findCachedRemote(
       filename,
       absPath,
     });
-    return { absPath, filename: resolved.filename, ext: resolved.ext || ext };
+    const hit = {
+      absPath,
+      filename: resolved.filename,
+      ext: resolved.ext || ext,
+    };
+    try {
+      const st = await fs.stat(absPath);
+      setHotRemote(id, hit, st.size);
+    } catch {
+      // ignore
+    }
+    return hit;
   } catch {
     return null;
   }
 }
 
-export async function downloadRemoteCached(
+type RemoteCachedFile = {
+  absPath: string;
+  filename: string;
+  ext: string;
+  size: number;
+};
+
+/** 同 URL 并发下载合并为一次，避免互相删掉 .part */
+const inflightDownloads = new Map<string, Promise<RemoteCachedFile>>();
+
+async function downloadRemoteCachedOnce(
   remoteUrl: string,
-  force = false,
-): Promise<{ absPath: string; filename: string; ext: string; size: number }> {
+  force: boolean,
+): Promise<RemoteCachedFile> {
   if (!force) {
     const hit = await findCachedRemote(remoteUrl);
     if (hit) {
@@ -177,21 +250,27 @@ export async function downloadRemoteCached(
         detail: { filename: hit.filename, ext: hit.ext },
         cacheHit: true,
       });
+      setHotRemote(remoteCacheId(remoteUrl), hit, stat.size);
       return { ...hit, size: stat.size };
     }
   }
 
   const url = await assertSafeRemoteUrl(remoteUrl);
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 60000);
+  const timer = setTimeout(
+    () => controller.abort(),
+    config.remoteDownloadTimeoutMs,
+  );
   const id = remoteCacheId(remoteUrl);
   const dir = cacheDir();
   const started = Date.now();
+  // 用唯一 part 名，避免并发写同一文件；完成后 rename 到最终名
+  const partPath = safeJoin(dir, `${id}.${process.pid}.${Date.now()}.part`);
 
   try {
     const res = await safeFetch(url.toString(), {
       signal: controller.signal,
-      headers: { "User-Agent": "nodeFileView/1.0" },
+      headers: { "User-Agent": "filePreview/1.0" },
     });
     if (!res.ok || !res.body) {
       throw new Error(`Failed to download remote file: HTTP ${res.status}`);
@@ -209,10 +288,12 @@ export async function downloadRemoteCached(
       : path.basename(url.pathname) || `remote-${id.slice(0, 8)}`;
     filename = sanitizeFilename(filename);
 
-    // 先落到临时文件，再按魔数纠正扩展名
-    const partPath = safeJoin(dir, `${id}.part`);
     const fileStream = createWriteStream(partPath);
-    await pipeline(res.body as unknown as NodeJS.ReadableStream, fileStream);
+    await pipeline(
+      res.body as unknown as NodeJS.ReadableStream,
+      createMaxBytesTransform(config.maxUploadSizeBytes),
+      fileStream,
+    );
 
     const stat = await fs.stat(partPath);
     if (stat.size > config.maxUploadSizeBytes) {
@@ -234,12 +315,29 @@ export async function downloadRemoteCached(
       throw new Error(`Remote file type .${ext} is not allowed`);
     }
 
+    // 下载期间另一路可能已写好缓存，优先复用
+    if (!force) {
+      const raced = await findCachedRemote(remoteUrl);
+      if (raced) {
+        await fs.unlink(partPath).catch(() => undefined);
+        const racedStat = await fs.stat(raced.absPath);
+        recordMonitorEvent({
+          kind: "remote-cache",
+          level: "info",
+          message: `远程缓存命中：${raced.filename}`,
+          detail: { filename: raced.filename, ext: raced.ext, coalesced: true },
+          cacheHit: true,
+        });
+        return { ...raced, size: racedStat.size };
+      }
+    }
+
     const finalName = `${id}.${ext}`;
     const absPath = safeJoin(dir, finalName);
     if (existsSync(absPath)) {
       await fs.unlink(absPath).catch(() => undefined);
     }
-    // 清掉同 id 的脏缓存（例如旧的 .bin）
+    // 清掉同 id 的脏缓存（例如旧的 .bin），保留本次 part / meta
     try {
       const names = await fs.readdir(dir);
       await Promise.all(
@@ -272,8 +370,10 @@ export async function downloadRemoteCached(
       cacheHit: false,
     });
 
+    setHotRemote(id, { absPath, filename, ext }, stat.size);
     return { absPath, filename, ext, size: stat.size };
   } catch (err) {
+    await fs.unlink(partPath).catch(() => undefined);
     recordMonitorEvent({
       kind: "remote-cache",
       level: "error",
@@ -289,6 +389,25 @@ export async function downloadRemoteCached(
   } finally {
     clearTimeout(timer);
   }
+}
+
+export async function downloadRemoteCached(
+  remoteUrl: string,
+  force = false,
+): Promise<RemoteCachedFile> {
+  if (force) invalidateHotRemote(remoteUrl);
+
+  const lockKey = `${force ? "force:" : ""}${remoteCacheId(remoteUrl)}`;
+  const existing = inflightDownloads.get(lockKey);
+  if (existing) return existing;
+
+  const job = downloadRemoteCachedOnce(remoteUrl, force).finally(() => {
+    if (inflightDownloads.get(lockKey) === job) {
+      inflightDownloads.delete(lockKey);
+    }
+  });
+  inflightDownloads.set(lockKey, job);
+  return job;
 }
 
 export function openCachedRemoteStream(absPath: string) {

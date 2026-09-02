@@ -88,7 +88,7 @@ export default function App() {
 
   const [remoteUrl, setRemoteUrl] = useState("");
   const [useAes, setUseAes] = useState(false);
-  const [watermarkTxt, setWatermarkTxt] = useState("nodeFileView");
+  const [watermarkTxt, setWatermarkTxt] = useState("filePreview");
   const [pageNo, setPageNo] = useState("1");
   const [highlight, setHighlight] = useState("");
   const [password, setPassword] = useState("");

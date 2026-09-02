@@ -1,5 +1,7 @@
+import cluster from "node:cluster";
 import fs from "node:fs";
 import Fastify from "fastify";
+import compress from "@fastify/compress";
 import cors from "@fastify/cors";
 import multipart from "@fastify/multipart";
 import rateLimit from "@fastify/rate-limit";
@@ -16,27 +18,71 @@ import { previewRoutes } from "./routes/preview.js";
 import { rawRoutes } from "./routes/raw.js";
 import { remoteRoutes } from "./routes/remote.js";
 import { monitorRoutes } from "./routes/monitor.js";
-import { initFileStore } from "./services/fileStore.js";
-import { initMonitorStore } from "./services/monitor.js";
+import { startCacheCleanupScheduler } from "./services/cacheCleanup.js";
+import { flushMeta, initFileStore } from "./services/fileStore.js";
+import {
+  flushMonitorStore,
+  initMonitorStore,
+} from "./services/monitor.js";
 import { ensureDir } from "./utils/path.js";
+import { assertStartupSecurity } from "./services/security/startupChecks.js";
 
-async function main() {
+function isPreviewReadPath(url: string): boolean {
+  const pathOnly = (url.split("?")[0] || "/").replace(/\/+$/, "") || "/";
+  return (
+    pathOnly === "/health" ||
+    pathOnly.startsWith("/onlinePreview") ||
+    pathOnly.startsWith("/api/cache/") ||
+    pathOnly.startsWith("/api/raw/") ||
+    pathOnly.startsWith("/api/temp/") ||
+    pathOnly.startsWith("/api/archive/") ||
+    pathOnly.startsWith("/assets/") ||
+    pathOnly === "/assets"
+  );
+}
+
+function resolveCorsOrigin(): boolean | string | string[] {
+  if (config.corsOrigins.length) return config.corsOrigins;
+  if (process.env.NODE_ENV === "production" && config.baseUrl) {
+    return [config.baseUrl];
+  }
+  return true;
+}
+
+async function startServer(): Promise<void> {
+  assertStartupSecurity();
   ensureDir(config.uploadsDir);
   ensureDir(config.cacheDir);
   ensureDir(config.tempDir);
   await initFileStore();
   initMonitorStore();
+  startCacheCleanupScheduler();
 
   const app = Fastify({
-    logger: true,
+    logger: config.logRequests ? true : { level: "warn" },
     trustProxy: config.trustProxy,
     bodyLimit: config.maxUploadSizeBytes,
+    keepAliveTimeout: 72_000,
+    requestTimeout: config.remoteDownloadTimeoutMs + 30_000,
   });
 
-  await app.register(cors, { origin: true });
+  if (config.compressEnabled) {
+    await app.register(compress, {
+      global: true,
+      encodings: ["gzip", "deflate", "br"],
+      threshold: 1024,
+    });
+  }
+
+  await app.register(cors, {
+    origin: resolveCorsOrigin(),
+    credentials: true,
+  });
   await app.register(rateLimit, {
     max: config.rateLimit.max,
     timeWindow: config.rateLimit.timeWindow,
+    allowList: (req) =>
+      config.rateLimit.previewExempt && isPreviewReadPath(req.url),
   });
   await app.register(multipart, {
     limits: {
@@ -50,7 +96,6 @@ async function main() {
   app.addHook("onSend", async (_request, reply) => {
     reply.header("X-Content-Type-Options", "nosniff");
     reply.header("Referrer-Policy", "no-referrer");
-    // Electron <webview> / iframe 嵌入时，X-Frame-Options: SAMEORIGIN → ERR_BLOCKED_BY_RESPONSE
     if (config.allowEmbed) {
       reply.removeHeader("X-Frame-Options");
     } else {
@@ -69,8 +114,6 @@ async function main() {
   await monitorRoutes(app);
   await previewRoutes(app);
 
-  // 生产（或显式开启）才托管前端构建产物；本地 pnpm dev 请用 Vite :5173，
-  // 避免误开 :8012 时加载过期的 apps/web/dist 看到空白页。
   const serveWebDist =
     process.env.SERVE_WEB_DIST === "true" ||
     process.env.SERVE_WEB_DIST === "1" ||
@@ -81,6 +124,9 @@ async function main() {
       root: config.webDistDir,
       prefix: "/",
       wildcard: false,
+      setHeaders(res) {
+        res.setHeader("Cache-Control", "public, max-age=604800, immutable");
+      },
     });
     app.setNotFoundHandler((request, reply) => {
       const pathOnly = request.url.split("?")[0] || "/";
@@ -95,7 +141,6 @@ async function main() {
       if (request.method !== "GET" && request.method !== "HEAD") {
         return reply.code(404).send({ error: "Not found" });
       }
-      // SPA fallback: only bare routes, never dotted sensitive paths
       if (pathOnly.includes("..") || /(^|\/)\./.test(pathOnly)) {
         return reply.code(404).send({ error: "Not found" });
       }
@@ -108,7 +153,7 @@ async function main() {
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>nodeFileView · dev</title>
+  <title>filePreview · dev</title>
   <style>
     body{font-family:system-ui,sans-serif;max-width:40rem;margin:3rem auto;padding:0 1rem;color:#1e293b;line-height:1.5}
     code{background:#f1f5f9;padding:.1rem .35rem;border-radius:4px}
@@ -116,7 +161,7 @@ async function main() {
   </style>
 </head>
 <body>
-  <h1>nodeFileView API（开发模式）</h1>
+  <h1>filePreview API（开发模式）</h1>
   <p>当前 <code>:${config.port}</code> 只提供 API / 预览，不托管前端构建产物。</p>
   <p>控制台请打开：<a href="http://127.0.0.1:5173/">http://127.0.0.1:5173/</a></p>
   <p>健康检查：<a href="/health">/health</a></p>
@@ -126,10 +171,45 @@ async function main() {
   }
 
   await app.listen({ port: config.port, host: config.host });
-  app.log.info(`nodeFileView listening on http://${config.host}:${config.port}`);
+  app.log.info(`filePreview listening on http://${config.host}:${config.port}`);
+
+  const shutdown = async (signal: string) => {
+    app.log.info(`Received ${signal}, shutting down…`);
+    await app.close();
+    await flushMeta();
+    await flushMonitorStore();
+    process.exit(0);
+  };
+  process.on("SIGTERM", () => void shutdown("SIGTERM"));
+  process.on("SIGINT", () => void shutdown("SIGINT"));
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+function boot(): void {
+  const workers =
+    config.clusterWorkers > 1 ? config.clusterWorkers : 1;
+
+  if (workers <= 1) {
+    startServer().catch((err) => {
+      console.error(err);
+      process.exit(1);
+    });
+    return;
+  }
+
+  if (cluster.isPrimary) {
+    console.info(`Primary ${process.pid} starting ${workers} workers`);
+    for (let i = 0; i < workers; i++) cluster.fork();
+    cluster.on("exit", (worker, code) => {
+      console.warn(`Worker ${worker.process.pid} exited (${code}), restarting…`);
+      cluster.fork();
+    });
+    return;
+  }
+
+  startServer().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}
+
+boot();

@@ -41,11 +41,21 @@ export function tryDecodeUrlParam(raw: string): string {
   }
 
   if (config.aes.enabled) {
-    try {
-      return aesDecrypt(trimmed);
-    } catch {
-      // fall through to base64 / plain
+    if (/^https?:\/\//i.test(trimmed) || trimmed.startsWith("file://local/")) {
+      return trimmed;
     }
+    try {
+      const decrypted = aesDecrypt(trimmed);
+      if (
+        /^https?:\/\//i.test(decrypted) ||
+        decrypted.startsWith("file://local/")
+      ) {
+        return decrypted;
+      }
+    } catch {
+      // fall through: reject non-URL ciphertext below
+    }
+    throw new Error("Invalid encrypted preview URL");
   }
 
   try {

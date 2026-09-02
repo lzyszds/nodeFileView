@@ -28,7 +28,7 @@ import { cn } from "@/lib/utils";
 
 type HomeTabTarget = "files" | "playground";
 
-const IMAGE = "ghcr.io/lzyszds/nodefileview:1.0.0";
+const IMAGE = "ghcr.io/lzyszds/filePreview:1.0.0";
 
 /** Fallback when public config is still loading — matches current qqlink deploy */
 const DEFAULT_TRUST_HOST = "*.my-imcloud.com,*qqlink.*";
@@ -171,7 +171,7 @@ export function HomePage(props: {
       props.config?.notTrustHost,
       DEFAULT_NOT_TRUST_HOST,
     );
-    const currentPort = props.config?.port || 8012;
+    const currentPort = props.config?.port || 6001;
     const shared = { trustHost, notTrustHost };
 
     return {
@@ -180,20 +180,20 @@ export function HomePage(props: {
       currentPort,
       current: buildDockerRun({
         comment: `Current instance — PORT=${currentPort}`,
-        name: currentPort === 8013 ? "nodefileview-test" : "nodefileview",
+        name: currentPort === 6002 ? "filePreview-test" : "filePreview",
         port: currentPort,
         ...shared,
       }),
       prod: buildDockerRun({
-        comment: "Production — container listens on 8012",
-        name: "nodefileview",
-        port: 8012,
+        comment: "Production — container listens on 6001",
+        name: "filePreview",
+        port: 6001,
         ...shared,
       }),
       test: buildDockerRun({
-        comment: "Test — container listens on 8013",
-        name: "nodefileview-test",
-        port: 8013,
+        comment: "Test — container listens on 6002",
+        name: "filePreview-test",
+        port: 6002,
         ...shared,
       }),
     };
@@ -316,7 +316,7 @@ export function HomePage(props: {
           <div className="space-y-3">
             <h1 className="text-3xl font-black tracking-tight text-slate-900 sm:text-4xl lg:text-5xl leading-tight flex items-baseline flex-wrap gap-3">
               <span className="gradient-title">{t("nav.brand")}</span>
-              <span className="text-sm font-semibold tracking-normal text-slate-400 font-mono">nodeFileView</span>
+              <span className="text-sm font-semibold tracking-normal text-slate-400 font-mono">filePreview</span>
             </h1>
             <p className="text-sm leading-relaxed text-slate-600 max-w-2xl font-normal">
               {t("home.intro")}
@@ -385,7 +385,7 @@ export function HomePage(props: {
             <div className="p-3.5 bg-slate-950 space-y-3">
               <div className="flex items-center gap-1.5 text-indigo-300 font-mono text-[11px] bg-slate-900/90 px-3 py-1.5 rounded-lg border border-slate-800">
                 <span className="text-emerald-400 font-bold">$</span>
-                <span className="truncate">curl -i http://localhost:8012/onlinePreview...</span>
+                <span className="truncate">curl -i http://localhost:6001/onlinePreview...</span>
                 <span className="inline-block w-1.5 h-3.5 bg-indigo-400 cursor-blink ml-auto shrink-0" />
               </div>
               <CodeBlock

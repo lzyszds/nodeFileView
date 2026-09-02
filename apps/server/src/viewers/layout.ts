@@ -28,7 +28,7 @@ export function layout(opts: {
   /** html lang，默认由 i18n 提供 */
   lang?: string;
 }): string {
-  const engine = opts.engine || "nodeFileView";
+  const engine = opts.engine || "filePreview";
   const chrome = opts.chrome || "full";
   const isFull = chrome === "full";
   const lang = opts.lang || htmlLang();
@@ -258,13 +258,13 @@ export function layout(opts: {
 <body>
   <script>
     (function () {
-      const targetNames = ["nodeFileViewHost", "previewHostBridge", "electronAPI"];
+      const targetNames = ["filePreviewHost", "previewHostBridge", "electronAPI"];
       const actions = new Map();
       let readySent = false;
       let state = {};
 
       function post(type, detail) {
-        const payload = { source: "nodeFileViewPreview", type: type, detail: detail };
+        const payload = { source: "filePreviewPreview", type: type, detail: detail };
         window.dispatchEvent(new CustomEvent("nfv-preview:" + type, { detail: detail }));
         if (window.parent && window.parent !== window) {
           try { window.parent.postMessage(payload, "*"); } catch (_) {}
@@ -364,7 +364,7 @@ export function layout(opts: {
 
       window.addEventListener("message", function (event) {
         const data = event.data;
-        if (!data || data.source !== "nodeFileViewHost") return;
+        if (!data || data.source !== "filePreviewHost") return;
         if (data.type === "invoke-action" && data.actionId) {
           window.__NFV_PREVIEW__.invoke(data.actionId, data.payload);
         }

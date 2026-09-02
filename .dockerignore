@@ -1,0 +1,22 @@
+# 构建上下文排除，减小体积并避免把本地缓存/密钥打进镜像
+.git
+.github
+.cursor
+.gitignore
+.dockerignore
+
+**/node_modules
+**/.DS_Store
+**/*.log
+**/.env
+**/.env.*
+!**/.env.example
+
+data/**
+!data/.gitkeep
+
+coverage
+*.md
+!README.md
+
+docker/run.sh

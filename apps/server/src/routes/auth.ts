@@ -21,7 +21,17 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
 
   app.post<{
     Body: { username?: string; password?: string };
-  }>("/api/auth/login", async (request, reply) => {
+  }>(
+    "/api/auth/login",
+    {
+      config: {
+        rateLimit: {
+          max: config.rateLimit.loginMax,
+          timeWindow: config.rateLimit.timeWindow,
+        },
+      },
+    },
+    async (request, reply) => {
     if (!config.basicAuth.enabled) {
       return { ok: true, enabled: false };
     }
@@ -33,7 +43,8 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     const token = createConsoleSessionToken(username);
     setConsoleSessionCookie(reply, token);
     return { ok: true, user: username };
-  });
+  },
+  );
 
   app.post("/api/auth/logout", async (_request, reply) => {
     clearConsoleSessionCookie(reply);

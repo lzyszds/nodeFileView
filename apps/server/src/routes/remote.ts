@@ -1,56 +1,60 @@
-import fsp from "node:fs/promises";
-import path from "node:path";
 import type { FastifyInstance } from "fastify";
+import { config } from "../config.js";
 import {
   downloadRemoteCached,
   findCachedRemote,
-  openCachedRemoteStream,
 } from "../services/remoteCache.js";
 import { applySafeContentHeaders } from "../services/security/contentSafety.js";
-import { getExt } from "../utils/ext.js";
+import { publicRemoteError } from "../services/security/redact.js";
+import { sendFileWithRange } from "../utils/sendFileRange.js";
 
 export async function remoteRoutes(app: FastifyInstance): Promise<void> {
   app.get<{
     Querystring: { url?: string; force?: string };
-  }>("/api/remote", async (request, reply) => {
-    const remoteUrl = request.query.url;
-    if (!remoteUrl) {
-      return reply.code(400).send({ error: "url is required" });
-    }
-    const force =
-      request.query.force === "1" || request.query.force === "true";
-
-    try {
-      let hit = force ? null : await findCachedRemote(remoteUrl);
-      if (!hit) {
-        const downloaded = await downloadRemoteCached(remoteUrl, force);
-        hit = {
-          absPath: downloaded.absPath,
-          filename: downloaded.filename,
-          ext: downloaded.ext,
-        };
+  }>(
+    "/api/remote",
+    {
+      config: {
+        rateLimit: {
+          max: config.rateLimit.remoteMax,
+          timeWindow: config.rateLimit.timeWindow,
+        },
+      },
+    },
+    async (request, reply) => {
+      const remoteUrl = request.query.url;
+      if (!remoteUrl) {
+        return reply.code(400).send({ error: "url is required" });
       }
+      const force =
+        request.query.force === "1" || request.query.force === "true";
 
-      const stat = await fsp.stat(hit.absPath);
-      applySafeContentHeaders(reply, {
-        filename: hit.filename,
-        ext: hit.ext,
-      });
-      reply.header("Content-Length", String(stat.size));
-      reply.header("Cache-Control", "private, max-age=3600");
-      return reply.send(openCachedRemoteStream(hit.absPath));
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Remote fetch failed";
-      return reply.code(400).send({ error: message });
-    }
-  });
-}
+      try {
+        let hit = force ? null : await findCachedRemote(remoteUrl);
+        if (!hit) {
+          const downloaded = await downloadRemoteCached(remoteUrl, force);
+          hit = {
+            absPath: downloaded.absPath,
+            filename: downloaded.filename,
+            ext: downloaded.ext,
+          };
+        }
 
-export function guessRemoteExt(remoteUrl: string): string {
-  try {
-    const u = new URL(remoteUrl);
-    return getExt(u.pathname) || getExt(path.basename(u.pathname));
-  } catch {
-    return "";
-  }
+        applySafeContentHeaders(reply, {
+          filename: hit.filename,
+          ext: hit.ext,
+        });
+        const maxAgeSec = Math.max(
+          300,
+          Math.floor(config.cache.remoteTtlMs / 1000) || 3600,
+        );
+        return sendFileWithRange(request, reply, hit.absPath, {
+          cacheMaxAgeSec: maxAgeSec,
+        });
+      } catch (err) {
+        request.log.warn({ err }, "remote fetch failed");
+        return reply.code(400).send({ error: publicRemoteError(err) });
+      }
+    },
+  );
 }

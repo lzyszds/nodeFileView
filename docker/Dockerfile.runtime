@@ -1,21 +1,7 @@
-# syntax=docker/dockerfile:1
+# 宿主机已 pnpm build 后使用（无 buildx / 避免 Mac 上 qemu 编译 Vite OOM）
+# 用法见 scripts/docker-build.sh
 
-# 在宿主机原生架构编译（Mac arm64 上避免 qemu 交叉编译 OOM）；产物为纯 JS，与 amd64 运行时兼容
-FROM --platform=$BUILDPLATFORM node:22-bookworm AS build
-WORKDIR /app
-ENV NODE_OPTIONS=--max-old-space-size=4096
-RUN corepack enable
-COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
-COPY apps/server/package.json apps/server/
-COPY apps/web/package.json apps/web/
-RUN pnpm install --frozen-lockfile
-COPY apps ./apps
-COPY locales ./locales
-RUN pnpm --filter @filePreview/web build \
-  && pnpm --filter @filePreview/server build
-
-# 运行时镜像：linux/amd64（含 LibreOffice）；仅安装 prod 依赖并复制编译产物
-FROM --platform=$TARGETPLATFORM node:22-bookworm
+FROM node:22-bookworm
 RUN apt-get update \
   && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     libreoffice-writer \
@@ -33,8 +19,8 @@ COPY apps/server/package.json apps/server/
 COPY apps/web/package.json apps/web/
 RUN pnpm install --filter @filePreview/server --prod --frozen-lockfile
 
-COPY --from=build /app/apps/server/dist ./apps/server/dist
-COPY --from=build /app/apps/web/dist ./apps/web/dist
+COPY apps/server/dist ./apps/server/dist
+COPY apps/web/dist ./apps/web/dist
 COPY locales ./locales
 COPY apps/server/package.json ./apps/server/
 COPY .env.example ./.env.example

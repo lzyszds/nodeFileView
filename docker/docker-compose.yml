@@ -1,30 +1,78 @@
 services:
-  nodefileview:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile
+  filePreview:
+    # 服务器部署：只 pull 私有仓库 latest，不在服务器 build（本地 pnpm docker:deploy 推送）
+    image: ${IMAGE:-registry.qqlink.live/qqlink_fileview:latest}
+    container_name: qqlink-fileview
+    pull_policy: always
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
     ports:
-      # 仅本机可达；公网请前面挂反代，并改成 "8012:8012"
-      - "127.0.0.1:8012:8012"
+      # 允许内网/ALB 访问这个 6001 端口
+      - "6001:6001"
     environment:
-      PORT: 8012
+      PORT: 6001
       HOST: 0.0.0.0
       DATA_DIR: /app/data
       LIBREOFFICE_PATH: soffice
       # —— 控制台锁（Docker 默认开启，请改密码）——
       BASIC_AUTH_ENABLED: "${BASIC_AUTH_ENABLED:-true}"
       BASIC_AUTH_USER: "${BASIC_AUTH_USER:-admin}"
-      BASIC_AUTH_PASS: "${BASIC_AUTH_PASS:-change-me-strong-password}"
+      BASIC_AUTH_PASS: "${BASIC_AUTH_PASS:-A6T+%iOG_n{y*RXo}"
       # —— 类似 kkFileView 的远程拉取白/黑名单 ——
       BASE_URL: "${BASE_URL:-}"
-      TRUST_HOST: "${TRUST_HOST:-}"
+      TRUST_HOST: "${TRUST_HOST:-*.my-imcloud.com,*qqlink.*}"
       NOT_TRUST_HOST: "${NOT_TRUST_HOST:-localhost,127.0.0.1,0.0.0.0,::1,169.254.*,192.168.*,10.*,172.16.*,172.17.*,172.18.*,172.19.*,172.20.*,172.21.*,172.22.*,172.23.*,172.24.*,172.25.*,172.26.*,172.27.*,172.28.*,172.29.*,172.30.*,172.31.*,100.64.*}"
       BLOCK_PRIVATE_IP: "${BLOCK_PRIVATE_IP:-true}"
       AES_ENABLED: "${AES_ENABLED:-false}"
-      MAX_UPLOAD_SIZE_MB: "${MAX_UPLOAD_SIZE_MB:-200}"
+      MAX_UPLOAD_SIZE_MB: "${MAX_UPLOAD_SIZE_MB:-100}"
       MAX_ARCHIVE_ENTRY_MB: "${MAX_ARCHIVE_ENTRY_MB:-100}"
-      TRUST_PROXY: "${TRUST_PROXY:-false}"
+      TRUST_PROXY: "${TRUST_PROXY:-true}"
       ALLOW_EMBED: "${ALLOW_EMBED:-true}"
+      # —— 性能 / IM 生产 ——
+      RATE_LIMIT_MAX: "${RATE_LIMIT_MAX:-300}"
+      RATE_LIMIT_WINDOW_MS: "${RATE_LIMIT_WINDOW_MS:-60000}"
+      RATE_LIMIT_UPLOAD_MAX: "${RATE_LIMIT_UPLOAD_MAX:-30}"
+      RATE_LIMIT_PREVIEW_EXEMPT: "${RATE_LIMIT_PREVIEW_EXEMPT:-true}"
+      RATE_LIMIT_REMOTE_MAX: "${RATE_LIMIT_REMOTE_MAX:-120}"
+      RATE_LIMIT_LOGIN_MAX: "${RATE_LIMIT_LOGIN_MAX:-10}"
+      CORS_ORIGINS: "${CORS_ORIGINS:-}"
+      CONVERT_MAX_CONCURRENT: "${CONVERT_MAX_CONCURRENT:-2}"
+      CONVERT_TIMEOUT_MS: "${CONVERT_TIMEOUT_MS:-120000}"
+      REMOTE_DOWNLOAD_TIMEOUT_MS: "${REMOTE_DOWNLOAD_TIMEOUT_MS:-120000}"
+      HOT_REMOTE_CACHE_MS: "${HOT_REMOTE_CACHE_MS:-60000}"
+      CLUSTER_WORKERS: "${CLUSTER_WORKERS:-2}"
+      COMPRESS_ENABLED: "${COMPRESS_ENABLED:-true}"
+      LOG_REQUESTS: "${LOG_REQUESTS:-false}"
+      # —— 磁盘缓存 TTL / 容量 ——
+      CACHE_TTL_DAYS: "${CACHE_TTL_DAYS:-7}"
+      REMOTE_CACHE_TTL_DAYS: "${REMOTE_CACHE_TTL_DAYS:-7}"
+      TEMP_TTL_HOURS: "${TEMP_TTL_HOURS:-24}"
+      CACHE_CLEANUP_INTERVAL_MS: "${CACHE_CLEANUP_INTERVAL_MS:-3600000}"
+      CACHE_MAX_MB: "${CACHE_MAX_MB:-4096}"
     volumes:
-      - ../data:/app/data
+      - filePreview-data:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:6001/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+  # ====== 自动更新看门狗 (监听此服务更新，如果不需要可以整段删掉) ======
+  watchtower:
+    image: containrrr/watchtower
+    container_name: watchtower_filepreview
     restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: --interval 300 --cleanup --label-enable
+
+volumes:
+  filePreview-data:
+    name: filePreview-data

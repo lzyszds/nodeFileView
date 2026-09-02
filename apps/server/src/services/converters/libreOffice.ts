@@ -4,6 +4,7 @@ import path from "node:path";
 import { nanoid } from "nanoid";
 import { config } from "../../config.js";
 import { ensureDir, safeJoin } from "../../utils/path.js";
+import { Semaphore } from "../../utils/semaphore.js";
 import {
   cacheKey,
   cachePathFor,
@@ -12,6 +13,12 @@ import {
   writeCacheFile,
 } from "../cache.js";
 import { recordMonitorEvent } from "../monitor.js";
+
+const convertSem = new Semaphore(config.convertMaxConcurrent || 2);
+const inflightConverts = new Map<
+  string,
+  Promise<{ pdfPath: string; key: string; cacheHit: boolean }>
+>();
 
 export async function convertToPdf(opts: {
   sourcePath: string;
@@ -28,14 +35,43 @@ export async function convertToPdf(opts: {
 
   if (opts.force) {
     await removeCache(key, "pdf");
-  }
-
-  if (await hasCache(key, "pdf")) {
+  } else if (await hasCache(key, "pdf")) {
     recordMonitorEvent({
       kind: "convert",
       level: "info",
       message: `转换缓存命中：${opts.sourceName}`,
       detail: { sourceName: opts.sourceName, key: key.slice(0, 12) },
+      durationMs: 0,
+      cacheHit: true,
+    });
+    return { pdfPath: cachePathFor(key, "pdf"), key, cacheHit: true };
+  }
+
+  const lockKey = opts.force ? `force:${key}` : key;
+  const existing = inflightConverts.get(lockKey);
+  if (existing) return existing;
+
+  const job = convertSem
+    .run(() => convertToPdfWorker(opts, key))
+    .finally(() => {
+      if (inflightConverts.get(lockKey) === job) {
+        inflightConverts.delete(lockKey);
+      }
+    });
+  inflightConverts.set(lockKey, job);
+  return job;
+}
+
+async function convertToPdfWorker(
+  opts: { sourcePath: string; sourceName: string; force?: boolean },
+  key: string,
+): Promise<{ pdfPath: string; key: string; cacheHit: boolean }> {
+  if (!opts.force && (await hasCache(key, "pdf"))) {
+    recordMonitorEvent({
+      kind: "convert",
+      level: "info",
+      message: `转换缓存命中：${opts.sourceName}`,
+      detail: { sourceName: opts.sourceName, key: key.slice(0, 12), coalesced: true },
       durationMs: 0,
       cacheHit: true,
     });
@@ -66,6 +102,7 @@ export async function convertToPdf(opts: {
         sourceName: opts.sourceName,
         key: key.slice(0, 12),
         force: Boolean(opts.force),
+        queuePending: convertSem.pending,
       },
       durationMs,
       cacheHit: false,

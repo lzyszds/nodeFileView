@@ -20,8 +20,9 @@ export async function rawRoutes(app: FastifyInstance): Promise<void> {
         filename: file.name,
         ext: file.ext,
       });
-      reply.header("Cache-Control", "private, max-age=120");
-      return sendFileWithRange(request, reply, file.path);
+      return sendFileWithRange(request, reply, file.path, {
+        cacheMaxAgeSec: 120,
+      });
     },
   );
 
@@ -36,7 +37,13 @@ export async function rawRoutes(app: FastifyInstance): Promise<void> {
         const abs = safeJoin(config.cacheDir, name);
         await fsp.access(abs);
         applySafeContentHeaders(reply, { filename: name });
-        return sendFileWithRange(request, reply, abs);
+        const maxAgeSec = Math.max(
+          60,
+          Math.floor(config.cache.ttlMs / 1000) || 3600,
+        );
+        return sendFileWithRange(request, reply, abs, {
+          cacheMaxAgeSec: maxAgeSec,
+        });
       } catch (err) {
         if (err instanceof PathEscapeError) {
           return reply.code(400).send({ error: "Invalid path" });
@@ -57,8 +64,7 @@ export async function rawRoutes(app: FastifyInstance): Promise<void> {
         const abs = safeJoin(config.tempDir, name);
         await fsp.access(abs);
         applySafeContentHeaders(reply, { filename: name });
-        reply.header("Cache-Control", "private, max-age=300");
-        return sendFileWithRange(request, reply, abs);
+        return sendFileWithRange(request, reply, abs, { cacheMaxAgeSec: 300 });
       } catch (err) {
         if (err instanceof PathEscapeError) {
           return reply.code(400).send({ error: "Invalid path" });

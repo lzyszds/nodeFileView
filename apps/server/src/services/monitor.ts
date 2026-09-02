@@ -2,6 +2,7 @@ import fs from "node:fs";
 import fsp from "node:fs/promises";
 import path from "node:path";
 import { config } from "../config.js";
+import { redactMonitorDetail } from "./security/redact.js";
 import { ensureDir } from "../utils/path.js";
 
 export type MonitorEventKind =
@@ -75,11 +76,11 @@ function schedulePersist(): void {
   if (persistTimer) return;
   persistTimer = setTimeout(() => {
     persistTimer = null;
-    persistNow();
-  }, 400);
+    void persistNow();
+  }, 1000);
 }
 
-function persistNow(): void {
+async function persistNow(): Promise<void> {
   try {
     ensureDir(config.dataDir);
     const payload = {
@@ -95,10 +96,18 @@ function persistNow(): void {
       dayPreviewCounts: Object.fromEntries(dayPreviewCounts),
       logs,
     };
-    fs.writeFileSync(persistPath, JSON.stringify(payload), "utf8");
+    await fsp.writeFile(persistPath, JSON.stringify(payload), "utf8");
   } catch {
     // ignore disk errors
   }
+}
+
+export async function flushMonitorStore(): Promise<void> {
+  if (persistTimer) {
+    clearTimeout(persistTimer);
+    persistTimer = null;
+  }
+  await persistNow();
 }
 
 export function initMonitorStore(): void {
@@ -173,7 +182,7 @@ export function recordMonitorEvent(
     kind: partial.kind,
     level: partial.level,
     message: partial.message,
-    detail: partial.detail,
+    detail: redactMonitorDetail(partial.detail),
     durationMs: partial.durationMs,
     cacheHit: partial.cacheHit,
   };
